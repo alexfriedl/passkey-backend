@@ -1,70 +1,120 @@
-import { Fido2Lib, AttestationResult, AssertionResult } from "fido2-lib";
-import config from "../config/config.json";
+import { Fido2Lib } from "fido2-lib";
+import {
+  storeChallenge,
+  getChallenge,
+  deleteChallenge,
+} from "./challenge-store";
+import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 
+const rpId = "localhost";
 const fido2 = new Fido2Lib({
-  rpId: config.rpId,
-  rpName: config.rpName,
-  challengeSize: config.challengeSize,
-  attestation: config.attestation as "none" | "direct" | "indirect",
-  cryptoParams: config.cryptoParams,
+  rpId,
+  rpName: "LocalKeyApp",
+  challengeSize: 32,
+  attestation: "direct", // 🔥 Secure Enclave Attestation ERZWINGEN
+  cryptoParams: [-7], // ECDSA P-256 (Secure Enclave nutzt diesen Standard)
+  authenticatorAttachment: "platform", // 🔥 Nur interner authenticator (keine USB/NFC/BLE)
+  timeout: 60000, // 60 Sekunden Timeout für WebAuthn-Anfragen
 });
 
 /**
- * Generate WebAuthn Registration Challenge
+ * Attestation validieren (Nur Apple Attestation erlauben)
  */
-export function generateRegistrationOptions(username: string) {
-  return fido2.attestationOptions();
-}
-
-/**
- * Verify WebAuthn Registration
- */
-export async function verifyRegistration(
-  credential: AttestationResult,
-  userChallenge: string
-) {
-  try {
-    const expectedChallenge = {
-      challenge: Buffer.from(userChallenge, "base64").toString("utf8"),
-      origin: `https://${config.rpId}`,
-      factor: "either" as "first" | "second" | "either",
-    };
-
-    const result = await fido2.attestationResult(credential, expectedChallenge);
-    return { success: true, credential: result.authnrData };
-  } catch (error) {
-    return { success: false, error };
+function validateAttestation(attestationObject: any) {
+  if (!attestationObject || attestationObject.fmt !== "apple") {
+    throw new Error(
+      "Ungültige Attestation: Nur Apple Secure Enclave wird akzeptiert."
+    );
   }
 }
 
 /**
- * Generate WebAuthn Authentication Challenge
+ * Registrierung: Optionen für FIDO2-Passkey-Registrierung generieren
  */
-export function generateAuthenticationOptions(publicKey: string) {
-  return fido2.assertionOptions();
+export async function generateRegistrationOptions(
+  username: string
+): Promise<PublicKeyCredentialCreationOptions> {
+  const options = await fido2.attestationOptions();
+
+  const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  storeChallenge(username, challengeBase64);
+
+  return {
+    ...options,
+    challenge: options.challenge,
+    authenticatorSelection: {
+      authenticatorAttachment: "platform", // 🔥 Nur Secure Enclave zulassen
+      residentKey: "required", // 🔥 Key muss auf dem Gerät gespeichert bleiben
+      userVerification: "required", // 🔥 Nutzer muss sich authentifizieren (Face ID / Touch ID)
+    },
+  };
 }
 
 /**
- * Verify WebAuthn Authentication
+ * Registrierung: FIDO2-Passkey-Registrierung verifizieren
+ */
+export async function verifyRegistration(credential: any, username: string) {
+  const challengeBase64 = getChallenge(username);
+  if (!challengeBase64) {
+    throw new Error("Challenge nicht gefunden oder abgelaufen.");
+  }
+
+  deleteChallenge(username);
+
+  const attestationResult = await fido2.attestationResult(credential, {
+    challenge: challengeBase64,
+    origin: `https://${rpId}`,
+    factor: "either",
+  });
+
+  // 🔥 Nur Apple Attestation erlauben
+  validateAttestation(attestationResult.authnrData);
+
+  return attestationResult;
+}
+
+/**
+ * Authentifizierung: Optionen für FIDO2-Login generieren
+ */
+export async function generateAuthenticationOptions(
+  username: string
+): Promise<PublicKeyCredentialRequestOptions> {
+  const options = await fido2.assertionOptions();
+
+  const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  storeChallenge(username, challengeBase64);
+
+  return {
+    ...options,
+    challenge: options.challenge,
+    allowCredentials: options.allowCredentials?.map((cred) => ({
+      ...cred,
+      transports: cred.transports as AuthenticatorTransport[] | undefined, // 🔥 Fix für Typfehler in `allowCredentials`
+    })),
+  };
+}
+
+/**
+ * Authentifizierung: FIDO2-Login verifizieren
  */
 export async function verifyAuthentication(
-  assertion: AssertionResult,
+  assertion: any,
   publicKey: string,
-  userChallenge: string
+  username: string
 ) {
-  try {
-    const expectedChallenge = {
-      challenge: Buffer.from(userChallenge, "base64").toString("utf8"),
-      origin: `https://${config.rpId}`,
-      factor: "either" as "first" | "second" | "either",
-      publicKey,
-      prevCounter: 0, // Replace with actual previous counter if available
-      userHandle: null, // Replace with actual user handle if available
-    };
-
-    const result = await fido2.assertionResult(assertion, expectedChallenge);
-    return { success: result.authnrData !== undefined };
-  } catch (error) {
-    return { success: false, error };
+  const challengeBase64 = getChallenge(username);
+  if (!challengeBase64) {
+    throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
+
+  deleteChallenge(username);
+
+  return await fido2.assertionResult(assertion, {
+    challenge: challengeBase64,
+    origin: `https://${rpId}`,
+    factor: "either",
+    publicKey,
+    prevCounter: 0,
+    userHandle: null,
+  });
 }

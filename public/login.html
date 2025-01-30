@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passkey Login</title>
+  </head>
+  <body>
+    <h1>Passkey Login</h1>
+    <input type="text" id="username" placeholder="Benutzername" />
+    <button onclick="login()">Login</button>
+    <p id="status"></p>
+
+    <script>
+      async function login() {
+        const username = document.getElementById("username").value;
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+
+        // Schritt 1: Login-Challenge vom Server holen
+        const res = await fetch("http://localhost:3000/login", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username }),
+        });
+
+        const options = await res.json();
+        options.challenge = Uint8Array.from(atob(options.challenge), (c) =>
+          c.charCodeAt(0)
+        ).buffer;
+
+        // Schritt 2: WebAuthn-Anmeldung im Browser starten
+        const credential = await navigator.credentials.get({
+          publicKey: options,
+        });
+
+        // Schritt 3: Anmeldung beim Server verifizieren
+        const credentialData = {
+          id: credential.id,
+          rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+          response: {
+            authenticatorData: btoa(
+              String.fromCharCode(
+                ...new Uint8Array(credential.response.authenticatorData)
+              )
+            ),
+            clientDataJSON: btoa(
+              String.fromCharCode(
+                ...new Uint8Array(credential.response.clientDataJSON)
+              )
+            ),
+            signature: btoa(
+              String.fromCharCode(
+                ...new Uint8Array(credential.response.signature)
+              )
+            ),
+            userHandle: credential.response.userHandle
+              ? btoa(
+                  String.fromCharCode(
+                    ...new Uint8Array(credential.response.userHandle)
+                  )
+                )
+              : null,
+          },
+          type: credential.type,
+        };
+
+        const verifyRes = await fetch("http://localhost:3000/login/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            assertion: credentialData,
+            publicKey: "abc123",
+          }), // Hier müsstest du das gespeicherte Public Key aus einer DB nehmen
+        });
+
+        const verifyResult = await verifyRes.json();
+        document.getElementById("status").textContent = verifyResult.success
+          ? "Login erfolgreich!"
+          : "Fehler beim Login.";
+      }
+    </script>
+  </body>
+</html>

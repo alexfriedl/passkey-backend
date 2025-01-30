@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passkey Registrierung</title>
+  </head>
+  <body>
+    <h1>Passkey Registrierung</h1>
+    <input type="text" id="username" placeholder="Benutzername" />
+    <button onclick="register()">Registrieren</button>
+    <p id="status"></p>
+
+    <script>
+      // ✅ Hilfsfunktion: `ArrayBuffer` in Base64URL umwandeln
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, ""); // Base64URL
+      }
+
+      // ✅ Hilfsfunktion: `Base64URL` in `ArrayBuffer` umwandeln
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      async function register() {
+        try {
+          const username = document.getElementById("username").value;
+          if (!username) {
+            alert("Bitte einen Benutzernamen eingeben!");
+            return;
+          }
+
+          // 🔹 Schritt 1: Registrierungschallenge vom Server holen
+          const res = await fetch("http://localhost:3000/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+
+          const options = await res.json();
+
+          // 🔹 Schritt 2: WebAuthn-Registrierung im Browser starten
+          const credential = await navigator.credentials.create({
+            publicKey: options,
+          });
+
+          // ✅ Fix: Korrekte Base64-Umwandlung für `credential`
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              attestationObject: arrayBufferToBase64(
+                credential.response.attestationObject
+              ),
+              clientDataJSON: arrayBufferToBase64(
+                credential.response.clientDataJSON
+              ),
+            },
+            type: credential.type,
+          };
+
+          // 🔹 Schritt 3: Registrierung beim Server abschließen
+          const verifyRes = await fetch(
+            "http://localhost:3000/register/verify",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username, credential: credentialData }),
+            }
+          );
+
+          const verifyResult = await verifyRes.json();
+          document.getElementById("status").textContent = verifyResult.success
+            ? "Registrierung erfolgreich!"
+            : "Fehler bei der Registrierung.";
+        } catch (error) {
+          console.error("Fehler bei der Registrierung:", error);
+          document.getElementById("status").textContent =
+            "Fehler beim Registrieren.";
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,209 +1,113 @@
-import express, { Request, Response, NextFunction } from "express";
+import express from "express";
 import cors from "cors";
-import bodyParser from "body-parser";
 import {
   generateRegistrationOptions,
   verifyRegistration,
   generateAuthenticationOptions,
   verifyAuthentication,
 } from "./webauthn";
-import { saveUser, getUser } from "./database";
-import { WebAuthnUser } from "./types";
-import { AttestationResult, AssertionResult } from "fido2-lib";
+import path from "path";
 
 const app = express();
-app.use(cors());
-app.use(bodyParser.json());
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+app.use(cors()); // Erlaubt Anfragen von deiner iOS-App
+app.use(express.static(path.join(__dirname, "../public")));
 
 /**
- * Middleware to catch async errors in Express
+ * 🔹 Schritt 1: Registrierung - Challenge generieren
+ * iOS-App sendet: { username: "alice" }
+ * Server antwortet mit den WebAuthn-Registrierungsoptionen
  */
-const asyncHandler =
-  (fn: (req: Request, res: Response, next: NextFunction) => Promise<void>) =>
-  (req: Request, res: Response, next: NextFunction) =>
-    Promise.resolve(fn(req, res, next)).catch(next);
-
-/**
- * 1️⃣ Register: Generate Challenge & Options
- */
-app.post(
-  "/register",
-  asyncHandler(async (req: Request, res: Response) => {
-    const { username } = req.body as { username: string };
+app.post("/register", async (req: any, res: any) => {
+  try {
+    const { username } = req.body;
     if (!username) {
-      res.status(400).json({ error: "Kein Benutzername angegeben" });
-      return;
+      return res.status(400).json({ error: "Username ist erforderlich" });
     }
 
     const options = await generateRegistrationOptions(username);
-    const challengeBase64 = Buffer.from(
-      new Uint8Array(options.challenge)
-    ).toString("base64");
-
-    const user: WebAuthnUser = {
-      id: username,
-      name: username,
-      displayName: username,
-      challenge: challengeBase64,
-    };
-
-    saveUser(username, user);
     res.json(options);
-  })
-);
-
-/**
- * 2️⃣ Register: Verify Attestation & Store Credential
- */
-app.post(
-  "/register/response",
-  asyncHandler(async (req: Request, res: Response) => {
-    const { username, credential } = req.body as {
-      username: string;
-      credential: {
-        id: string;
-        rawId: string;
-        response: {
-          clientDataJSON: string;
-          attestationObject?: string;
-        };
-      };
-    };
-
-    const user: WebAuthnUser | null = getUser(username);
-    if (!user) {
-      res.status(400).json({ error: "User nicht gefunden" });
-      return;
-    }
-
-    if (!user.challenge) {
-      res.status(400).json({ error: "Challenge nicht gefunden" });
-      return;
-    }
-
-    const attestationObjectStr = credential.response.attestationObject ?? "";
-
-    const formattedCredential: AttestationResult = {
-      ...credential,
-      id: Buffer.from(credential.id, "base64"),
-      rawId: Buffer.from(credential.rawId, "base64"),
-      response: {
-        clientDataJSON: Buffer.from(
-          credential.response.clientDataJSON,
-          "base64"
-        ).toString("utf8"),
-        attestationObject: Buffer.from(attestationObjectStr, "base64").toString(
-          "utf8"
-        ),
-      },
-    };
-
-    const verification = await verifyRegistration(
-      formattedCredential,
-      user.challenge
-    );
-
-    if (verification.success) {
-      user.publicKey =
-        Object.values(verification.credential ?? {})[0]?.publicKey ?? "";
-      saveUser(username, user);
-      res.json({ success: true });
-    } else {
-      console.log({ verification });
-      res.status(400).json({ error: "Verifikation fehlgeschlagen" });
-    }
-  })
-);
-
-/**
- * 3️⃣ Authenticate: Generate Challenge for Authentication
- */
-app.post(
-  "/authenticate",
-  asyncHandler(async (req: Request, res: Response) => {
-    const { username } = req.body;
-    const user = getUser(username);
-    if (!user || !user.publicKey) {
-      res.status(400).json({ error: "User nicht registriert" });
-      return;
-    }
-
-    const options = await generateAuthenticationOptions(user.publicKey);
-    const challengeBase64 = Buffer.from(
-      new Uint8Array(options.challenge)
-    ).toString("base64");
-
-    saveUser(username, { challenge: challengeBase64 });
-    res.json(options);
-  })
-);
-
-/**
- * 4️⃣ Authenticate: Verify Assertion & Validate User
- */
-app.post(
-  "/authenticate/response",
-  asyncHandler(async (req: Request, res: Response) => {
-    const { username, assertion } = req.body as {
-      username: string;
-      assertion: {
-        id: string;
-        rawId: string;
-        response: {
-          clientDataJSON: string;
-          authenticatorData: string;
-          signature: string;
-        };
-      };
-    };
-
-    const user = getUser(username);
-    if (!user || !user.challenge) {
-      res.status(400).json({ error: "User oder Challenge nicht gefunden" });
-      return;
-    }
-
-    const formattedAssertion: AssertionResult = {
-      ...assertion,
-      id: Buffer.from(assertion.id, "base64"),
-      rawId: Buffer.from(assertion.rawId, "base64"),
-      response: {
-        clientDataJSON: Buffer.from(
-          assertion.response.clientDataJSON,
-          "base64"
-        ).toString("utf8"),
-        authenticatorData: Buffer.from(
-          assertion.response.authenticatorData,
-          "base64"
-        ),
-        signature: Buffer.from(assertion.response.signature, "base64").toString(
-          "utf8"
-        ),
-      },
-    };
-
-    const verification = await verifyAuthentication(
-      formattedAssertion,
-      user.publicKey!,
-      user.challenge
-    );
-
-    if (verification.success) {
-      res.json({ success: true, message: "User authenticated!" });
-    } else {
-      res.status(400).json({ error: "Authentifizierung fehlgeschlagen" });
-    }
-  })
-);
-
-/**
- * Global Error Handler Middleware
- */
-app.use((err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error("🔥 Server Error:", err);
-  res
-    .status(500)
-    .json({ error: "Interner Serverfehler", details: err.message });
+  } catch (error) {
+    console.error("Fehler beim Erstellen der Registrierungschallenge:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Erstellen der Registrierungschallenge" });
+  }
 });
 
-app.listen(3000, () => console.log("✅ WebAuthn-Server läuft auf Port 3000"));
+/**
+ * 🔹 Schritt 2: Registrierung - Schlüssel verifizieren
+ * iOS-App sendet: { username: "alice", credential: {...} }
+ * Server überprüft den Passkey und speichert ihn
+ */
+app.post("/register/verify", async (req: any, res: any) => {
+  try {
+    const { username, credential } = req.body;
+    if (!username || !credential) {
+      return res
+        .status(400)
+        .json({ error: "Username und Credential sind erforderlich" });
+    }
+
+    const result = await verifyRegistration(credential, username);
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error("Fehler beim Verifizieren der Registrierung:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Verifizieren der Registrierung" });
+  }
+});
+
+/**
+ * 🔹 Schritt 3: Login - Challenge generieren
+ * iOS-App sendet: { username: "alice" }
+ * Server antwortet mit den WebAuthn-Login-Optionen
+ */
+app.post("/login", async (req: any, res: any) => {
+  try {
+    const { username } = req.body;
+    if (!username) {
+      return res.status(400).json({ error: "Username ist erforderlich" });
+    }
+
+    const options = await generateAuthenticationOptions(username);
+    res.json(options);
+  } catch (error) {
+    console.error("Fehler beim Erstellen der Login-Challenge:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Erstellen der Login-Challenge" });
+  }
+});
+
+/**
+ * 🔹 Schritt 4: Login - Authentifizierung verifizieren
+ * iOS-App sendet: { username: "alice", assertion: {...}, publicKey: "abc123..." }
+ * Server überprüft die Authentifizierung
+ */
+app.post("/login/verify", async (req: any, res: any) => {
+  try {
+    const { username, assertion, publicKey } = req.body;
+    if (!username || !assertion || !publicKey) {
+      return res
+        .status(400)
+        .json({ error: "Username, Assertion und PublicKey sind erforderlich" });
+    }
+
+    const result = await verifyAuthentication(assertion, publicKey, username);
+    res.json({ success: true, result });
+  } catch (error) {
+    console.error("Fehler beim Verifizieren der Authentifizierung:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Verifizieren der Authentifizierung" });
+  }
+});
+
+// Server starten
+app.listen(PORT, () => {
+  console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
+});

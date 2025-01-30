@@ -1,7 +1,0 @@
-{
-  "rpId": "example.com",
-  "rpName": "LocalKeyApp",
-  "challengeSize": 32,
-  "attestation": "direct",
-  "cryptoParams": [-7]
-}
