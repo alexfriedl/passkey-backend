@@ -12,75 +12,117 @@
     <p id="status"></p>
 
     <script>
-      async function login() {
-        const username = document.getElementById("username").value;
-        if (!username) {
-          alert("Bitte einen Benutzernamen eingeben!");
-          return;
+      // ✅ Hilfsfunktion: Base64URL → ArrayBuffer
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
         }
+        return bytes.buffer;
+      }
 
-        // Schritt 1: Login-Challenge vom Server holen
-        const res = await fetch("http://localhost:3000/login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username }),
-        });
+      // ✅ Hilfsfunktion: ArrayBuffer → Base64URL
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, ""); // Base64URL
+      }
 
-        const options = await res.json();
-        options.challenge = Uint8Array.from(atob(options.challenge), (c) =>
-          c.charCodeAt(0)
-        ).buffer;
+      async function login() {
+        try {
+          const username = document.getElementById("username").value;
+          if (!username) {
+            alert("Bitte einen Benutzernamen eingeben!");
+            return;
+          }
 
-        // Schritt 2: WebAuthn-Anmeldung im Browser starten
-        const credential = await navigator.credentials.get({
-          publicKey: options,
-        });
+          console.log("📢 Login gestartet für:", username);
 
-        // Schritt 3: Anmeldung beim Server verifizieren
-        const credentialData = {
-          id: credential.id,
-          rawId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
-          response: {
-            authenticatorData: btoa(
-              String.fromCharCode(
-                ...new Uint8Array(credential.response.authenticatorData)
-              )
-            ),
-            clientDataJSON: btoa(
-              String.fromCharCode(
-                ...new Uint8Array(credential.response.clientDataJSON)
-              )
-            ),
-            signature: btoa(
-              String.fromCharCode(
-                ...new Uint8Array(credential.response.signature)
-              )
-            ),
-            userHandle: credential.response.userHandle
-              ? btoa(
-                  String.fromCharCode(
-                    ...new Uint8Array(credential.response.userHandle)
-                  )
-                )
-              : null,
-          },
-          type: credential.type,
-        };
+          // 🔹 Schritt 1: Login-Challenge vom Server holen
+          const res = await fetch(
+            "https://fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app/login",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ username }),
+            }
+          );
 
-        const verifyRes = await fetch("http://localhost:3000/login/verify", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            username,
-            assertion: credentialData,
-            publicKey: "abc123",
-          }), // Hier müsstest du das gespeicherte Public Key aus einer DB nehmen
-        });
+          const options = await res.json();
+          console.log("📥 Empfangene `options` von Server:", options);
 
-        const verifyResult = await verifyRes.json();
-        document.getElementById("status").textContent = verifyResult.success
-          ? "Login erfolgreich!"
-          : "Fehler beim Login.";
+          if (typeof options.challenge === "string") {
+            options.challenge = base64ToArrayBuffer(options.challenge);
+          }
+
+          if (typeof options.allowCredentials === "object") {
+            options.allowCredentials = options.allowCredentials.map((cred) => ({
+              ...cred,
+              id: base64ToArrayBuffer(cred.id),
+            }));
+          }
+
+          console.log("🔄 `challenge` und `allowCredentials` konvertiert.");
+
+          // 🔹 Schritt 2: WebAuthn-Authentifizierung starten
+          console.log("🔑 WebAuthn-Login wird gestartet...");
+          const credential = await navigator.credentials.get({
+            publicKey: options,
+          });
+
+          console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
+
+          // ✅ Fix: Umwandlung von `ArrayBuffer` in Base64
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              authenticatorData: arrayBufferToBase64(
+                credential.response.authenticatorData
+              ),
+              clientDataJSON: arrayBufferToBase64(
+                credential.response.clientDataJSON
+              ),
+              signature: arrayBufferToBase64(credential.response.signature),
+              userHandle: credential.response.userHandle
+                ? arrayBufferToBase64(credential.response.userHandle)
+                : null,
+            },
+            type: credential.type,
+          };
+
+          console.log("📤 Sende Credential-Daten an den Server:", credentialData);
+
+          // 🔹 Schritt 3: Anmeldung beim Server verifizieren
+          const verifyRes = await fetch(
+            "https://fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app/login/verify",
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                username,
+                assertion: credentialData,
+              }),
+            }
+          );
+
+          const verifyResult = await verifyRes.json();
+          console.log("✅ Server-Antwort auf `login/verify`:", verifyResult);
+
+          document.getElementById("status").textContent = verifyResult.success
+            ? "Login erfolgreich!"
+            : "Fehler beim Login.";
+        } catch (error) {
+          console.error("❌ Fehler beim Login:", error);
+          document.getElementById("status").textContent = "Fehler beim Login.";
+        }
       }
     </script>
   </body>

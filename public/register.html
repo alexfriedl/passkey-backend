@@ -36,6 +36,8 @@
       }
 
       async function register() {
+        const API_URL = "https://fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app";
+
         try {
           const username = document.getElementById("username").value;
           if (!username) {
@@ -43,8 +45,11 @@
             return;
           }
 
+          console.log("📢 Registrierung gestartet für:", username);
+
           // 🔹 Schritt 1: Registrierungschallenge vom Server holen
-          const res = await fetch("http://localhost:3000/register", {
+          const res = await fetch(`${API_URL}/register`, {
+            // 👈 Nutzt jetzt `hostname.local`
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username }),
@@ -52,10 +57,44 @@
 
           const options = await res.json();
 
+          console.log("📥 Empfangene `options` von Server:", options);
+
+          // ✅ Fix für `user.id`
+          if (typeof options.user.id === "string") {
+            console.log(
+              "🔄 `user.id` ist Base64. Wird in Uint8Array konvertiert."
+            );
+            options.user.id = base64ToArrayBuffer(options.user.id);
+          }
+
+          // ✅ Fix: Challenge sicherstellen (ArrayBuffer oder Base64-Umwandlung)
+          if (options.challenge) {
+            if (typeof options.challenge === "string") {
+              console.log(
+                "🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert."
+              );
+              options.challenge = base64ToArrayBuffer(options.challenge);
+            } else if (!(options.challenge instanceof ArrayBuffer)) {
+              console.error(
+                "❌ `challenge` hat einen unerwarteten Typ:",
+                options.challenge
+              );
+              throw new Error("Challenge hat falsches Format!");
+            }
+          } else {
+            console.error("❌ `challenge` fehlt in `options`!");
+            throw new Error("Challenge nicht erhalten!");
+          }
+
+          console.log("✅ Umgewandelte `challenge`:", options.challenge);
+
           // 🔹 Schritt 2: WebAuthn-Registrierung im Browser starten
+          console.log("🔑 WebAuthn-Registrierung wird gestartet...");
           const credential = await navigator.credentials.create({
             publicKey: options,
           });
+
+          console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
 
           // ✅ Fix: Korrekte Base64-Umwandlung für `credential`
           const credentialData = {
@@ -72,24 +111,30 @@
             type: credential.type,
           };
 
-          // 🔹 Schritt 3: Registrierung beim Server abschließen
-          const verifyRes = await fetch(
-            "http://localhost:3000/register/verify",
-            {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ username, credential: credentialData }),
-            }
+          console.log(
+            "📤 Sende Credential-Daten an den Server:",
+            credentialData
           );
 
+          // 🔹 Schritt 3: Registrierung beim Server abschließen
+
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, credential: credentialData }),
+          });
+
           const verifyResult = await verifyRes.json();
+
+          console.log("✅ Server-Antwort auf `register/verify`:", verifyResult);
+
           document.getElementById("status").textContent = verifyResult.success
-            ? "Registrierung erfolgreich!"
-            : "Fehler bei der Registrierung.";
+            ? "🎉 Registrierung erfolgreich!"
+            : "⚠️ Fehler bei der Registrierung.";
         } catch (error) {
-          console.error("Fehler bei der Registrierung:", error);
+          console.error("❌ Fehler bei der Registrierung:", error);
           document.getElementById("status").textContent =
-            "Fehler beim Registrieren.";
+            "❌ Fehler beim Registrieren.";
         }
       }
     </script>
