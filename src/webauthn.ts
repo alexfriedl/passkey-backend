@@ -5,8 +5,9 @@ import {
   deleteChallenge,
 } from "./challenge-store";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
+import { randomBytes } from "crypto";
 
-const rpId = "localhost";
+const rpId = "fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app";
 const fido2 = new Fido2Lib({
   rpId,
   rpName: "LocalKeyApp",
@@ -31,23 +32,45 @@ function validateAttestation(attestationObject: any) {
 /**
  * Registrierung: Optionen für FIDO2-Passkey-Registrierung generieren
  */
+
 export async function generateRegistrationOptions(
   username: string
 ): Promise<PublicKeyCredentialCreationOptions> {
   const options = await fido2.attestationOptions();
 
+  console.log(
+    "🔍 Originale Challenge von fido2.attestationOptions():",
+    options.challenge
+  );
+
+  // 🔥 Fix: Challenge als Base64 speichern
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   storeChallenge(username, challengeBase64);
 
-  return {
+  console.log("✅ Gespeicherte Challenge (Base64):", challengeBase64);
+
+  const userId = arrayBufferToBase64Url(randomBytes(16)); // ✅ Speichern als Base64-String
+
+  console.log("🆔 Generierte User ID (Uint8Array):", userId);
+
+  const response: PublicKeyCredentialCreationOptions = {
     ...options,
-    challenge: options.challenge,
+    challenge: challengeBase64 as unknown as BufferSource, // ✅ Jetzt Base64 statt ArrayBuffer
+    user: {
+      id: userId as unknown as BufferSource, // ✅ Jetzt als Base64-String gespeichert
+      name: username,
+      displayName: username,
+    },
     authenticatorSelection: {
-      authenticatorAttachment: "platform", // 🔥 Nur Secure Enclave zulassen
-      residentKey: "required", // 🔥 Key muss auf dem Gerät gespeichert bleiben
-      userVerification: "required", // 🔥 Nutzer muss sich authentifizieren (Face ID / Touch ID)
+      authenticatorAttachment: "platform" as AuthenticatorAttachment, // ✅ Fix für TypeScript-Fehler
+      residentKey: "required",
+      userVerification: "required",
     },
   };
+
+  console.log("📦 Finale `generateRegistrationOptions()` Response:", response);
+
+  return response;
 }
 
 /**
@@ -59,18 +82,32 @@ export async function verifyRegistration(credential: any, username: string) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
 
+  console.log("✅ Challenge geladen:", challengeBase64);
+  console.log("📥 Erhaltenes Credential für Verifizierung:", credential);
+
   deleteChallenge(username);
 
-  const attestationResult = await fido2.attestationResult(credential, {
-    challenge: challengeBase64,
-    origin: `https://${rpId}`,
-    factor: "either",
-  });
+  // ✅ Fix: `id` und `rawId` von Base64 zurück in ArrayBuffer umwandeln
+  credential.rawId = base64UrlToArrayBuffer(credential.rawId);
+  credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // 🔥 Nur Apple Attestation erlauben
-  validateAttestation(attestationResult.authnrData);
+  try {
+    const attestationResult = await fido2.attestationResult(credential, {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+    });
 
-  return attestationResult;
+    console.log("🔐 Attestation-Resultat:", attestationResult);
+
+    // 🔥 Nur Apple Attestation erlauben
+    validateAttestation(attestationResult.authnrData);
+
+    return attestationResult;
+  } catch (error) {
+    console.error("❌ Fehler bei `fido2.attestationResult()`:", error);
+    throw new Error("Fehler beim Verifizieren der Registrierung.");
+  }
 }
 
 /**
