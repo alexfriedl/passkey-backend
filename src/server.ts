@@ -12,7 +12,13 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
-app.use(cors()); // Erlaubt Anfragen von deiner iOS-App
+app.use(
+  cors({
+    origin: "*", // 👈 Erlaubt ALLE Origins (nur für lokale Tests)
+    methods: ["GET", "POST"],
+    allowedHeaders: ["Content-Type"],
+  })
+); // Erlaubt Anfragen von deiner iOS-App
 app.use(express.static(path.join(__dirname, "../public")));
 
 /**
