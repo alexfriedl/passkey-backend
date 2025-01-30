@@ -16,11 +16,11 @@ Dieses Projekt ist ein **Passkey-Backend**, das WebAuthn (FIDO2) verwendet, um s
 ✅ **Schutz vor Phishing** → Passkeys funktionieren nur mit der richtigen Domain.
 
 ## ✨ Features
-✅ Secure **Passkey registration & authentication**  
-✅ Uses **fido2-lib** for WebAuthn operations  
-✅ Supports **Apple Secure Enclave Attestation**  
-✅ No **iCloud sync** – Passkeys are **locally stored**  
-✅ Works with **iOS/macOS Passkey AutoFill & WebAuthn**  
+✅ Secure **Passkey registration & authentication**
+✅ Uses **fido2-lib** for WebAuthn operations
+✅ Supports **Apple Secure Enclave Attestation**
+✅ No **iCloud sync** – Passkeys are **locally stored**
+✅ Works with **iOS/macOS Passkey AutoFill & WebAuthn**
 
 ---
 ## 🛠 **Lokale Entwicklung & Tests**
