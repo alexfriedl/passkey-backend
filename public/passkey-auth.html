@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passkey-Login</title>
+  </head>
+  <body>
+    <h2>🔓 Login mit Passkey</h2>
+    <button onclick="loginWithPasskey()">🔑 Anmelde n</button>
+    <p id="status"></p>
+
+    <script>
+      async function loginWithPasskey() {
+        const response = await fetch("/authenticate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "testuser" }),
+        });
+        const options = await response.json();
+
+        try {
+          const assertion = await navigator.credentials.get({
+            publicKey: options,
+          });
+
+          const result = await fetch("/authenticate/response", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "testuser", assertion }),
+          });
+
+          if (result.ok) {
+            document.getElementById("status").innerText =
+              "✅ Erfolgreich eingeloggt!";
+          } else {
+            document.getElementById("status").innerText =
+              "❌ Fehler beim Login!";
+          }
+        } catch (err) {
+          console.error("Fehler:", err);
+          document.getElementById("status").innerText = "❌ Fehler beim Login!";
+        }
+      }
+    </script>
+  </body>
+</html>
