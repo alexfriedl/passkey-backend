@@ -10,17 +10,17 @@ Dieses Projekt ist ein **Passkey-Backend**, das WebAuthn (FIDO2) verwendet, um s
 - Kann in mobile Apps oder Webanwendungen integriert werden.
 
 ### 🌟 **Vorteile:**
-✅ **Kein Passwort erforderlich** → Weniger Sicherheitsrisiken.
-✅ **Hohe Sicherheit** → Nutzt Hardware-gestützte Secure Enclave.
-✅ **Einfache Nutzung** → Face ID / Touch ID für Login.
-✅ **Schutz vor Phishing** → Passkeys funktionieren nur mit der richtigen Domain.
+✅ **Kein Passwort erforderlich** → Weniger Sicherheitsrisiken.  
+✅ **Hohe Sicherheit** → Nutzt Hardware-gestützte Secure Enclave.  
+✅ **Einfache Nutzung** → Face ID / Touch ID für Login.  
+✅ **Schutz vor Phishing** → Passkeys funktionieren nur mit der richtigen Domain.  
 
 ## ✨ Features
-✅ Secure **Passkey registration & authentication**
-✅ Uses **fido2-lib** for WebAuthn operations
-✅ Supports **Apple Secure Enclave Attestation**
-✅ No **iCloud sync** – Passkeys are **locally stored**
-✅ Works with **iOS/macOS Passkey AutoFill & WebAuthn**
+✅ Secure **Passkey registration & authentication**  
+✅ Uses **fido2-lib** for WebAuthn operations  
+✅ Supports **Apple Secure Enclave Attestation**  
+✅ No **iCloud sync** – Passkeys are **locally stored**  
+✅ Works with **iOS/macOS Passkey AutoFill & WebAuthn**  
 
 ---
 ## 🛠 **Lokale Entwicklung & Tests**
