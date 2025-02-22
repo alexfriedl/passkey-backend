@@ -81,7 +81,10 @@ https://fdb2-xyz.ngrok-free.app/register.html
 6. Der Server validiert das Credential und speichert es.
 
 ---
-## 📦 **Objekt der Begierde** – Beispiel einer WebAuthn-Registrierungsanfrage
+## 📦 **Beispiel einer WebAuthn-Registrierungsanfrage**
+Der Browser erhält dieses Objekt vom Server und übergibt es an die Funktion
+navigator.credentials.create({ publicKey: options }) um den Erstellungsprozess zu starten.
+Dar Ergebnis dieses Prozesses ist das **Credential Objekt**
 ```json
 {
   "rp": {
@@ -104,6 +107,39 @@ https://fdb2-xyz.ngrok-free.app/register.html
   }
 }
 ```
+
+---
+## 📦 **Beispiel eines Credential Objekts**
+Wird nach erfolgreicher Passkey-Erstellung vom Backend an die iOS App übergeben.
+Enthält den Public Key als binäre Daten in Form von ArrayBuffers, die für den Sicherheitsnachweis und die Verifizierung der Registrierung verwendet werden.
+```json
+{
+  id: "BeispielCredentialID123",      // String, der die ID repräsentiert
+  rawId: ArrayBuffer { … },           // ArrayBuffer, der die binäre Form der ID enthält
+  type: "public-key",                 // Immer "public-key"
+  response: {
+    clientDataJSON: ArrayBuffer { … },    // ArrayBuffer, der die vom Browser generierten Client-Daten enthält
+    attestationObject: ArrayBuffer { … }  // ArrayBuffer, der die vom Authenticator erzeugten Attestierungsdaten enthält
+  }
+}
+```
+
+**id:**
+Ein String, der die eindeutige Kennung des erzeugten Credentials darstellt.
+
+**rawId:**
+Die binäre Darstellung der Credential-ID. Diesen Wert verwendet man häufig in der Kommunikation mit dem Server – dabei muss er meist in ein Base64URL-Format umgewandelt werden.
+
+**type:**
+Hier steht immer "public-key", da es sich um ein PublicKeyCredential handelt.
+
+**response:**
+Das Response-Objekt enthält zwei wichtige ArrayBuffers:
+
+**clientDataJSON:**
+Enthält JSON-Daten (im binären Format), die Informationen wie den Challenge-Parameter, den Ursprungs-URL und den Typ der Anfrage (z. B. "webauthn.create") beinhalten.
+attestationObject:
+Enthält die vom Authenticator erzeugten Daten, die Details über den neu erstellten Schlüssel, die Attestation und weitere Metadaten beinhalten.
 
 ---
 ## 🔍 **Fehlersuche & Lösungen**
