@@ -7,7 +7,7 @@ import {
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
 
-const rpId = "fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app";
+const rpId = "2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app";
 const fido2 = new Fido2Lib({
   rpId,
   rpName: "LocalKeyApp",

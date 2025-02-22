@@ -12,29 +12,6 @@
     <p id="status"></p>
 
     <script>
-      // ✅ Hilfsfunktion: Base64URL → ArrayBuffer
-      function base64ToArrayBuffer(base64) {
-        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
-        }
-        return bytes.buffer;
-      }
-
-      // ✅ Hilfsfunktion: ArrayBuffer → Base64URL
-      function arrayBufferToBase64(buffer) {
-        let binary = "";
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < bytes.byteLength; i++) {
-          binary += String.fromCharCode(bytes[i]);
-        }
-        return btoa(binary)
-          .replace(/\+/g, "-")
-          .replace(/\//g, "_")
-          .replace(/=+$/, ""); // Base64URL
-      }
-
       async function login() {
         try {
           const username = document.getElementById("username").value;
@@ -47,7 +24,7 @@
 
           // 🔹 Schritt 1: Login-Challenge vom Server holen
           const res = await fetch(
-            "https://fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app/login",
+            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/login",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -58,15 +35,26 @@
           const options = await res.json();
           console.log("📥 Empfangene `options` von Server:", options);
 
+          // ✅ Fix: Sicherstellen, dass `challenge` ein ArrayBuffer ist
           if (typeof options.challenge === "string") {
+            console.log(
+              "🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert."
+            );
             options.challenge = base64ToArrayBuffer(options.challenge);
+          } else if (!(options.challenge instanceof ArrayBuffer)) {
+            throw new Error("❌ Challenge hat falsches Format!");
           }
 
-          if (typeof options.allowCredentials === "object") {
+          // ✅ Fix: Konvertiere `allowCredentials`
+          if (Array.isArray(options.allowCredentials)) {
             options.allowCredentials = options.allowCredentials.map((cred) => ({
               ...cred,
               id: base64ToArrayBuffer(cred.id),
             }));
+          } else {
+            console.warn(
+              "⚠️ `allowCredentials` fehlt oder hat falsches Format."
+            );
           }
 
           console.log("🔄 `challenge` und `allowCredentials` konvertiert.");
@@ -98,11 +86,14 @@
             type: credential.type,
           };
 
-          console.log("📤 Sende Credential-Daten an den Server:", credentialData);
+          console.log(
+            "📤 Sende Credential-Daten an den Server:",
+            credentialData
+          );
 
           // 🔹 Schritt 3: Anmeldung beim Server verifizieren
           const verifyRes = await fetch(
-            "https://fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app/login/verify",
+            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/login/verify",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -123,6 +114,28 @@
           console.error("❌ Fehler beim Login:", error);
           document.getElementById("status").textContent = "Fehler beim Login.";
         }
+      }
+
+      // ✅ Hilfsfunktionen für Base64-Umwandlung
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
       }
     </script>
   </body>
