@@ -86,7 +86,7 @@ https://fdb2-xyz.ngrok-free.app/register.html
 {
   "rp": {
     "name": "LocalKeyApp",
-    "id": "fdb2-2003-ef-a727-8900-9484-fcfd-baba-de60.ngrok-free.app"
+    "id": "2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app"
   },
   "user": {
     "id": "d8qZIgZSdNqnvqtO5G8KPQ",
@@ -157,6 +157,11 @@ https://fdb2-xyz.ngrok-free.app/register.html
 }
 ```
 🔹 **Antwort:** `{ success: true }` bei Erfolg
+
+---
+## 🐞 **Debugging**
+Analyze iOS Frontend Errors with Safari:
+![Debugging Safari](image.png)
 
 ---
 ## 🎯 **Zusätzliche Ressourcen**
