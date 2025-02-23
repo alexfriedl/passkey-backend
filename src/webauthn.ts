@@ -6,6 +6,7 @@ import {
 } from "./challenge-store";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
+import cbor from "cbor"; // Stelle sicher, dass du eine CBOR-Bibliothek installiert hast
 
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
@@ -102,25 +103,25 @@ export async function verifyRegistration(credential: any, username: string) {
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
+  // --- HACK: Attestation-Objekt manipulieren ---
+  const attestationBuffer = base64UrlToArrayBuffer(
+    credential.response.attestationObject
+  );
+  let attestationObj = await cbor.decodeFirst(attestationBuffer);
+  // Überschreibe das Format auf "none", damit fido2-lib es akzeptiert
+  attestationObj.fmt = "none";
+  // Encodiere das modifizierte Objekt zurück in CBOR
+  const newAttestationBuffer = cbor.encode(attestationObj);
+  credential.response.attestationObject = newAttestationBuffer;
+  // ---------------------------------------------------
+
   try {
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
       factor: "either",
     });
-
     console.log("🔐 Attestation-Resultat:", attestationResult);
-
-    // Logge das Attestation-Objekt zur weiteren Analyse
-    console.log(
-      "🔐 Attestation-Objekt (raw):",
-      JSON.stringify(attestationResult.authnrData, null, 2)
-    );
-
-    // Validierung der Attestation
-    // TODO:  🔥 Prüfen nur Apple Attestation zu erlauben
-    // validateAttestation(attestationResult.authnrData);
-
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
