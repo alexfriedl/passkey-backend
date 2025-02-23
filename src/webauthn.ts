@@ -127,6 +127,11 @@ export async function verifyRegistration(credential: any, username: string) {
       Buffer.from(newClientDataStr).toString("base64");
   }
 
+  console.log(
+    "📥 Credential Attestation Object:",
+    credential.response.attestationObject
+  );
+
   // STEP 2: Attestation-Objekt anpassen
   {
     const attestationBuffer = Buffer.from(
