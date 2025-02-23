@@ -111,15 +111,17 @@ export async function verifyRegistration(credential: any, username: string) {
       "base64"
     );
     // adjustAttestationObject soll einen CBOR-codierten Buffer oder ArrayBuffer zurückliefern
+    // Wir erwarten hier weiterhin einen Buffer (oder ArrayBuffer)
     credential.response.attestationObject =
       adjustAttestationObject(originalBuffer);
   }
 
-  // Passe den clientDataJSON-Wert an
+  // Wir passen nun den clientDataJSON-Wert an:
+  // Wenn clientDataJSON als String vorliegt, dekodiere ihn, parse das JSON,
+  // und re-serialisiere es als Base64url-String (ohne Padding)
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
     if (typeof credential.response.clientDataJSON === "string") {
-      // Base64-dekodieren und dann in UTF-8-String umwandeln
       clientDataStr = Buffer.from(
         credential.response.clientDataJSON,
         "base64"
@@ -129,17 +131,21 @@ export async function verifyRegistration(credential: any, username: string) {
         "utf8"
       );
     }
-
-    // JSON parsen
     const clientData = JSON.parse(clientDataStr);
-    // Optional: Challenge-Wert anpassen (z. B. "/" durch "_" ersetzen)
-    clientData.challenge = clientData.challenge.replace(/\//g, "_");
-    // Objekt wieder in einen UTF-8-String serialisieren und dann in einen Buffer umwandeln
+
+    // Optional: Falls Anpassungen am Challenge-Wert gewünscht sind,
+    // kannst du hier clientData.challenge anpassen. (Vorsicht: Dies verändert die Originaldaten!)
+    // Beispiel (nur falls wirklich notwendig):
+    // clientData.challenge = clientData.challenge.replace(/\//g, "_");
+
+    // Re-serialize als UTF-8-String...
     const newClientDataStr = JSON.stringify(clientData);
+    // ...und als Base64url (ohne Padding) codieren.
+    // (Node ab v15 unterstützt "base64url" als Encoding; bei älteren Versionen ggf. manuell umwandeln)
     credential.response.clientDataJSON = Buffer.from(
       newClientDataStr,
       "utf8"
-    ).buffer;
+    ).toString("base64url");
   }
 
   try {
