@@ -24,7 +24,7 @@
 
           // Schritt 1: Login-Challenge vom Server holen
           const res = await fetch(
-            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/api/login",
+            "https://www.appsprint.de/api/login",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -93,7 +93,7 @@
 
           // Schritt 3: Anmeldung beim Server verifizieren
           const verifyRes = await fetch(
-            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/api/login/verify",
+            "https://www.appsprint.de/api/login/verify",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

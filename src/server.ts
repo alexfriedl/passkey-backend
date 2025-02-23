@@ -22,7 +22,7 @@ app.use(
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.sendFile(path.join(__dirname, "../public/apple-app-site-association"));
+  res.sendFile(path.join(__dirname, "../public/.well-known/apple-app-site-association"));
 });
 
 
