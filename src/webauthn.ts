@@ -127,9 +127,27 @@ export async function verifyRegistration(credential: any, username: string) {
       Buffer.from(newClientDataStr).toString("base64");
   }
 
+  function base64UrlToBase64(base64url: string) {
+    let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
+    while (base64.length % 4 !== 0) {
+      base64 += "=";
+    }
+    return base64;
+  }
+
+  function base64ToHex(base64: any) {
+    const buffer = Buffer.from(base64, "base64");
+    return buffer.toString("hex");
+  }
+
   console.log(
-    "📥 Credential Attestation Object:",
-    credential.response.attestationObject
+    "📥 Credential Attestation Object (Base64):",
+    base64UrlToBase64(credential.response.attestationObject)
+  );
+
+  console.log(
+    "📥 Credential Attestation Object (Hex):",
+    base64ToHex(base64UrlToBase64(credential.response.attestationObject))
   );
 
   // STEP 2: Attestation-Objekt anpassen
