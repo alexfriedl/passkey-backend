@@ -121,19 +121,24 @@ export async function verifyRegistration(credential: any, username: string) {
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
     if (typeof credential.response.clientDataJSON === "string") {
-      // Wenn es bereits ein String ist, verwende ihn direkt
-      clientDataStr = credential.response.clientDataJSON;
+      // Zuerst Base64-dekodieren und dann in einen UTF-8-String umwandeln
+      clientDataStr = Buffer.from(
+        credential.response.clientDataJSON,
+        "base64"
+      ).toString("utf8");
     } else {
-      // Ansonsten: Konvertiere den ArrayBuffer in einen String
       clientDataStr = Buffer.from(credential.response.clientDataJSON).toString(
         "utf8"
       );
     }
 
-    // Parste das JSON
+    // Jetzt kann der UTF-8-String als JSON geparst werden
     const clientData = JSON.parse(clientDataStr);
-    // Ersetze alle "/" durch "_" (damit der Challenge-Wert Base64url-konform ist)
+
+    // (Optional) Falls du den Challenge-Wert anpassen möchtest:
+    // Beispiel: Ersetze "/" durch "_" (nur wenn wirklich nötig)
     clientData.challenge = clientData.challenge.replace(/\//g, "_");
+
     // Konvertiere das Objekt wieder in einen UTF-8-String und dann in einen Buffer
     const newClientDataStr = JSON.stringify(clientData);
     credential.response.clientDataJSON = Buffer.from(newClientDataStr, "utf8");
