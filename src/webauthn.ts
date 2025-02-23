@@ -111,8 +111,10 @@ export async function verifyRegistration(credential: any, username: string) {
       "base64"
     );
     const adjustedAttObj = adjustAttestationObject(originalBuffer);
+
     // Setze das angepasste Objekt zurück als CBOR-codierter Buffer
-    credential.response.attestationObject = cbor.encode(adjustedAttObj);
+    const encoded = cbor.encode(adjustedAttObj);
+    credential.response.attestationObject = Uint8Array.from(encoded).buffer;
   }
 
   try {
