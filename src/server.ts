@@ -22,9 +22,10 @@ app.use(
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.sendFile(path.join(__dirname, "../public/.well-known/apple-app-site-association"));
+  res.sendFile(
+    path.join(__dirname, "../public/.well-known/apple-app-site-association")
+  );
 });
-
 
 app.use(express.static(path.join(__dirname, "../public")));
 
@@ -101,29 +102,21 @@ app.post("/api/login", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", assertion: {...}, publicKey: "abc123..." }
  * Server überprüft die Authentifizierung
  */
-app.post("/api/register/verify", async (req: any, res: any) => {
+app.post("/api/login/verify", async (req: any, res: any) => {
   try {
-    const { username, credential } = req.body;
-    if (!username || !credential) {
+    const { username, assertion, publicKey } = req.body;
+    if (!username || !assertion) {
       return res
         .status(400)
-        .json({ error: "Username und Credential sind erforderlich" });
+        .json({ error: "Username und Assertion sind erforderlich" });
     }
-
-    // Logge den kompletten eingehenden Credential-Datensatz
-    console.log(
-      "Eingehende Credential-Daten:",
-      JSON.stringify(credential, null, 2)
-    );
-
-    const result = await verifyRegistration(credential, username);
-    console.log("Ergebnis der Registrierung:", result);
+    const result = await verifyAuthentication(assertion, publicKey, username);
     res.json({ success: true, result });
   } catch (error) {
-    console.error("Fehler beim Verifizieren der Registrierung:", error);
+    console.error("Fehler beim Verifizieren der Authentifizierung:", error);
     res
       .status(500)
-      .json({ error: "Fehler beim Verifizieren der Registrierung" });
+      .json({ error: "Fehler beim Verifizieren der Authentifizierung" });
   }
 });
 
