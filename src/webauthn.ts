@@ -235,6 +235,7 @@ export async function verifyRegistration(credential: any, username: string) {
       origin: `https://${"www.appsprint.de"}`,
       factor: "either",
     });
+    console.log("✅ Registrierung erfolgreich:", attestationResult);
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
