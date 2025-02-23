@@ -18,7 +18,14 @@ app.use(
     methods: ["GET", "POST"],
     allowedHeaders: ["Content-Type"],
   })
-); // Erlaubt Anfragen von deiner iOS-App
+);
+
+app.get("/.well-known/apple-app-site-association", (req, res) => {
+  res.setHeader("Content-Type", "application/json");
+  res.sendFile(path.join(__dirname, "../public/apple-app-site-association"));
+});
+
+
 app.use(express.static(path.join(__dirname, "../public")));
 
 /**
@@ -26,7 +33,7 @@ app.use(express.static(path.join(__dirname, "../public")));
  * iOS-App sendet: { username: "alice" }
  * Server antwortet mit den WebAuthn-Registrierungsoptionen
  */
-app.post("/register", async (req: any, res: any) => {
+app.post("/api/register", async (req: any, res: any) => {
   try {
     const { username } = req.body;
     if (!username) {
@@ -48,7 +55,7 @@ app.post("/register", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", credential: {...} }
  * Server überprüft den Passkey und speichert ihn
  */
-app.post("/register/verify", async (req: any, res: any) => {
+app.post("/api/register/verify", async (req: any, res: any) => {
   try {
     const { username, credential } = req.body;
     if (!username || !credential) {
@@ -72,7 +79,7 @@ app.post("/register/verify", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice" }
  * Server antwortet mit den WebAuthn-Login-Optionen
  */
-app.post("/login", async (req: any, res: any) => {
+app.post("/api/login", async (req: any, res: any) => {
   try {
     const { username } = req.body;
     if (!username) {
@@ -94,22 +101,29 @@ app.post("/login", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", assertion: {...}, publicKey: "abc123..." }
  * Server überprüft die Authentifizierung
  */
-app.post("/login/verify", async (req: any, res: any) => {
+app.post("/api/register/verify", async (req: any, res: any) => {
   try {
-    const { username, assertion, publicKey } = req.body;
-    if (!username || !assertion || !publicKey) {
+    const { username, credential } = req.body;
+    if (!username || !credential) {
       return res
         .status(400)
-        .json({ error: "Username, Assertion und PublicKey sind erforderlich" });
+        .json({ error: "Username und Credential sind erforderlich" });
     }
 
-    const result = await verifyAuthentication(assertion, publicKey, username);
+    // Logge den kompletten eingehenden Credential-Datensatz
+    console.log(
+      "Eingehende Credential-Daten:",
+      JSON.stringify(credential, null, 2)
+    );
+
+    const result = await verifyRegistration(credential, username);
+    console.log("Ergebnis der Registrierung:", result);
     res.json({ success: true, result });
   } catch (error) {
-    console.error("Fehler beim Verifizieren der Authentifizierung:", error);
+    console.error("Fehler beim Verifizieren der Registrierung:", error);
     res
       .status(500)
-      .json({ error: "Fehler beim Verifizieren der Authentifizierung" });
+      .json({ error: "Fehler beim Verifizieren der Registrierung" });
   }
 });
 

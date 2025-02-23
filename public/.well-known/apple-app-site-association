@@ -1,0 +1,17 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "K6WRJB8J4N.localkeyboys.LocalKey",
+        "paths": [
+          "/register",
+          "/register/*"
+        ]
+      }
+    ]
+  },
+  "webcredentials": {
+    "apps": ["K6WRJB8J4N.localkeyboys.LocalKey.AutoFillCredentialProvider"]
+  }
+}

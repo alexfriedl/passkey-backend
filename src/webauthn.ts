@@ -12,17 +12,25 @@ const fido2 = new Fido2Lib({
   rpId,
   rpName: "LocalKeyApp",
   challengeSize: 32,
-  attestation: "direct", // 🔥 Secure Enclave Attestation ERZWINGEN
+  attestation: "none", // 🔥 Secure Enclave Attestation ERZWINGEN "direct" / Native iOS Integration erlaubt nur "non" aus Datenschutzrechtlichen Gründen
   cryptoParams: [-7], // ECDSA P-256 (Secure Enclave nutzt diesen Standard)
   authenticatorAttachment: "platform", // 🔥 Nur interner authenticator (keine USB/NFC/BLE)
   timeout: 60000, // 60 Sekunden Timeout für WebAuthn-Anfragen
 });
 
 /**
- * Attestation validieren (Nur Apple Attestation erlauben)
+ * Attestation validieren (Nur Apple Secure Enclave)
  */
+// TODO: fmt apple prüfen
 function validateAttestation(attestationObject: any) {
-  if (!attestationObject || attestationObject.fmt !== "apple") {
+  console.log("🔐 Attestation-Objekt:", attestationObject);
+  // Falls attestationObject eine Map ist, benutze .get("fmt")
+  const fmt =
+    attestationObject instanceof Map
+      ? attestationObject.get("fmt")
+      : attestationObject.fmt;
+  console.log("fmt:", fmt);
+  if (!fmt || (fmt !== "apple" && fmt !== "none")) {
     throw new Error(
       "Ungültige Attestation: Nur Apple Secure Enclave wird akzeptiert."
     );
@@ -82,12 +90,15 @@ export async function verifyRegistration(credential: any, username: string) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
 
-  console.log("✅ Challenge geladen:", challengeBase64);
-  console.log("📥 Erhaltenes Credential für Verifizierung:", credential);
+  console.log("🔄 Geladene Challenge:", challengeBase64);
+  console.log(
+    "📥 Credential für Verifizierung:",
+    JSON.stringify(credential, null, 2)
+  );
 
   deleteChallenge(username);
 
-  // ✅ Fix: `id` und `rawId` von Base64 zurück in ArrayBuffer umwandeln
+  // Konvertiere id und rawId in ArrayBuffer falls nötig
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
@@ -100,12 +111,19 @@ export async function verifyRegistration(credential: any, username: string) {
 
     console.log("🔐 Attestation-Resultat:", attestationResult);
 
-    // 🔥 Nur Apple Attestation erlauben
+    // Logge das Attestation-Objekt zur weiteren Analyse
+    console.log(
+      "🔐 Attestation-Objekt (raw):",
+      JSON.stringify(attestationResult.authnrData, null, 2)
+    );
+
+    // Validierung der Attestation
+    // TODO:  🔥 Prüfen nur Apple Attestation zu erlauben
     validateAttestation(attestationResult.authnrData);
 
     return attestationResult;
   } catch (error) {
-    console.error("❌ Fehler bei `fido2.attestationResult()`:", error);
+    console.error("❌ Fehler bei fido2.attestationResult():", error);
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
 }

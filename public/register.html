@@ -9,7 +9,15 @@
     <h1>Passkey Registrierung</h1>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
-    <p id="status"></p>
+    <pre id="status" style="color: black"></pre>
+    <p id="debug1"></p>
+    <p id="debug2"></p>
+    <p id="debug3"></p>
+    <p id="debug4"></p>
+    <p id="debug41"></p>
+    <p id="debug5"></p>
+    <p id="debug6"></p>
+    <p id="debug7"></p>
 
     <script>
       // ✅ Hilfsfunktion: `ArrayBuffer` in Base64URL umwandeln
@@ -36,7 +44,28 @@
       }
 
       async function register() {
-        const API_URL = "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app";
+        const API_URL =
+          "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/api";
+
+        const flattenObject = (obj) => {
+          const flattened = {};
+
+          Object.keys(obj).forEach((key) => {
+            const value = obj[key];
+
+            if (
+              typeof value === "object" &&
+              value !== null &&
+              !Array.isArray(value)
+            ) {
+              Object.assign(flattened, flattenObject(value));
+            } else {
+              flattened[key] = value;
+            }
+          });
+
+          return flattened;
+        };
 
         try {
           const username = document.getElementById("username").value;
@@ -46,6 +75,9 @@
           }
 
           console.log("📢 Registrierung gestartet für:", username);
+          document.getElementById(
+            "debug1"
+          ).textContent = `❌ Username (debug1): ${username}`;
 
           // 🔹 Schritt 1: Registrierungschallenge vom Server holen
           const res = await fetch(`${API_URL}/register`, {
@@ -55,7 +87,15 @@
             body: JSON.stringify({ username }),
           });
 
+          document.getElementById(
+            "debug2"
+          ).textContent = `❌ Response (debug2): ${flattenObject(res)}`;
+
           const options = await res.json();
+
+          document.getElementById(
+            "debug3"
+          ).textContent = `❌ Options (debug3): ${options}`;
 
           console.log("📥 Empfangene `options` von Server:", options);
 
@@ -88,11 +128,19 @@
 
           console.log("✅ Umgewandelte `challenge`:", options.challenge);
 
+          document.getElementById(
+            "debug4"
+          ).textContent = `❌ Challenge (debug4): ${options.challenge}`;
+
           // 🔹 Schritt 2: WebAuthn-Registrierung im Browser starten
           console.log("🔑 WebAuthn-Registrierung wird gestartet...");
           const credential = await navigator.credentials.create({
             publicKey: options,
           });
+
+          document.getElementById(
+            "debug41"
+          ).textContent = `❌ credential (debug41): $credential}`;
 
           console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
 
@@ -116,6 +164,10 @@
             credentialData
           );
 
+          document.getElementById(
+            "debug5"
+          ).textContent = `❌ CredentialData (debug5): ${credentialData}`;
+
           // 🔹 Schritt 3: Registrierung beim Server abschließen
 
           const verifyRes = await fetch(`${API_URL}/register/verify`, {
@@ -124,17 +176,26 @@
             body: JSON.stringify({ username, credential: credentialData }),
           });
 
+          document.getElementById(
+            "debug6"
+          ).textContent = `❌ verifyRes (debug6): ${verifyRes}`;
+
           const verifyResult = await verifyRes.json();
 
           console.log("✅ Server-Antwort auf `register/verify`:", verifyResult);
+
+          document.getElementById(
+            "debug7"
+          ).textContent = `❌ verifyResult (debug7): ${verifyResult}`;
 
           document.getElementById("status").textContent = verifyResult.success
             ? "🎉 Registrierung erfolgreich!"
             : "⚠️ Fehler bei der Registrierung.";
         } catch (error) {
           console.error("❌ Fehler bei der Registrierung:", error);
-          document.getElementById("status").textContent =
-            "❌ Fehler beim Registrieren.";
+          document.getElementById(
+            "status"
+          ).textContent = `❌ Fehler beim Registrieren. ${error.message}`;
         }
       }
     </script>

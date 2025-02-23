@@ -22,9 +22,9 @@
 
           console.log("📢 Login gestartet für:", username);
 
-          // 🔹 Schritt 1: Login-Challenge vom Server holen
+          // Schritt 1: Login-Challenge vom Server holen
           const res = await fetch(
-            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/login",
+            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/api/login",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -33,33 +33,36 @@
           );
 
           const options = await res.json();
-          console.log("📥 Empfangene `options` von Server:", options);
+          console.log("📥 Empfangene `options` vom Server:", options);
 
-          // ✅ Fix: Sicherstellen, dass `challenge` ein ArrayBuffer ist
+          // Sicherstellen, dass `challenge` als ArrayBuffer vorliegt
           if (typeof options.challenge === "string") {
-            console.log(
-              "🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert."
-            );
+            console.log("🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert.");
             options.challenge = base64ToArrayBuffer(options.challenge);
           } else if (!(options.challenge instanceof ArrayBuffer)) {
             throw new Error("❌ Challenge hat falsches Format!");
           }
 
-          // ✅ Fix: Konvertiere `allowCredentials`
+          // Konvertiere `allowCredentials` falls vorhanden
           if (Array.isArray(options.allowCredentials)) {
             options.allowCredentials = options.allowCredentials.map((cred) => ({
               ...cred,
               id: base64ToArrayBuffer(cred.id),
             }));
           } else {
-            console.warn(
-              "⚠️ `allowCredentials` fehlt oder hat falsches Format."
-            );
+            console.warn("⚠️ `allowCredentials` fehlt oder hat falsches Format.");
           }
 
           console.log("🔄 `challenge` und `allowCredentials` konvertiert.");
 
-          // 🔹 Schritt 2: WebAuthn-Authentifizierung starten
+          // Für den Login-Flow entfernen wir das attestation-Feld,
+          // da es hier nicht benötigt wird und zu Konflikten führen kann.
+          if (options.attestation) {
+            console.log("🔄 Entferne attestation-Feld aus Options.");
+            delete options.attestation;
+          }
+
+          // Schritt 2: WebAuthn-Authentifizierung starten
           console.log("🔑 WebAuthn-Login wird gestartet...");
           const credential = await navigator.credentials.get({
             publicKey: options,
@@ -67,7 +70,7 @@
 
           console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
 
-          // ✅ Fix: Umwandlung von `ArrayBuffer` in Base64
+          // Umwandlung von ArrayBuffer in Base64 für die Antwortdaten
           const credentialData = {
             id: credential.id,
             rawId: arrayBufferToBase64(credential.rawId),
@@ -86,14 +89,11 @@
             type: credential.type,
           };
 
-          console.log(
-            "📤 Sende Credential-Daten an den Server:",
-            credentialData
-          );
+          console.log("📤 Sende Credential-Daten an den Server:", credentialData);
 
-          // 🔹 Schritt 3: Anmeldung beim Server verifizieren
+          // Schritt 3: Anmeldung beim Server verifizieren
           const verifyRes = await fetch(
-            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/login/verify",
+            "https://2bfe-2003-ef-a727-8900-c92a-b95e-4072-b72d.ngrok-free.app/api/login/verify",
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -112,11 +112,12 @@
             : "Fehler beim Login.";
         } catch (error) {
           console.error("❌ Fehler beim Login:", error);
-          document.getElementById("status").textContent = "Fehler beim Login.";
+          document.getElementById("status").textContent =
+            "Fehler beim Login: " + error.message;
         }
       }
 
-      // ✅ Hilfsfunktionen für Base64-Umwandlung
+      // Hilfsfunktion: Base64URL in ArrayBuffer umwandeln
       function base64ToArrayBuffer(base64) {
         const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
         const bytes = new Uint8Array(binary.length);
@@ -126,6 +127,7 @@
         return bytes.buffer;
       }
 
+      // Hilfsfunktion: ArrayBuffer in Base64URL umwandeln
       function arrayBufferToBase64(buffer) {
         let binary = "";
         const bytes = new Uint8Array(buffer);
