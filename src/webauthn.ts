@@ -59,27 +59,20 @@ export async function generateRegistrationOptions(
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren
  */
-
 export async function verifyRegistration(credential: any, username: string) {
-  // Hole den gespeicherten Challenge-Base64URL-String
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  console.log(
-    "📥 Credential für Verifizierung:",
-    JSON.stringify(credential, null, 2)
-  );
+  console.log("📥 Credential für Verifizierung:", JSON.stringify(credential, null, 2));
   deleteChallenge(username);
 
-  // Konvertiere id und rawId in ArrayBuffer (fido2-lib erwartet diese)
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
   // --- STEP 1: clientDataJSON anpassen ---
   {
-    // clientDataJSON kommt als Base64-String – decodieren, parsen und die Challenge ersetzen
     const clientDataBuffer = Buffer.from(
       credential.response.clientDataJSON,
       "base64"
@@ -90,9 +83,7 @@ export async function verifyRegistration(credential: any, username: string) {
     } catch (err) {
       throw new Error("Fehler beim Parsen von clientDataJSON");
     }
-    // Ersetze die Challenge mit dem Serverwert (Base64URL-kodiert)
     clientData.challenge = challengeBase64;
-    // Re-kodiere den clientDataJSON als Standard Base64 (fido2-lib dekodiert intern in einen ArrayBuffer)
     const newClientDataStr = JSON.stringify(clientData);
     credential.response.clientDataJSON =
       Buffer.from(newClientDataStr).toString("base64");
@@ -101,30 +92,27 @@ export async function verifyRegistration(credential: any, username: string) {
 
   // --- STEP 2: Attestation-Objekt anpassen ---
   {
-    // Dekodiere das attestationObject (Base64-String -> Buffer -> CBOR)
     const attestationBuffer = Buffer.from(
       credential.response.attestationObject,
       "base64"
     );
     let attestationObj = await cbor.decodeFirst(attestationBuffer);
-    // Setze das Format auf "none" und leere attStmt (da fido2-lib für "none" keine Felder erwartet)
     attestationObj.fmt = "none";
     attestationObj.attStmt = {};
 
-    // Hack: Patching des rpIdHash in der AuthenticatorData
-    // Die AuthenticatorData liegt in attestationObj.authData als ArrayBuffer oder Buffer.
-    const expectedRpIdHash = createHash("sha256")
-      .update("www.appsprint.de")
-      .digest();
-    // Stelle sicher, dass wir einen Buffer haben:
+    // AuthenticatorData patchen:
     let authDataBuffer = Buffer.isBuffer(attestationObj.authData)
       ? attestationObj.authData
       : Buffer.from(attestationObj.authData);
-    // Überschreibe die ersten 32 Bytes (rpIdHash) mit dem erwarteten Hash.
+    const expectedRpIdHash = createHash("sha256")
+      .update("www.appsprint.de")
+      .digest();
     expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
-    attestationObj.authData = authDataBuffer;
 
-    // Encodiere das modifizierte Objekt zurück in CBOR und als Base64-String
+    // Setze den User Presence Bit (0x01), falls noch nicht gesetzt
+    authDataBuffer[32] = authDataBuffer[32] | 0x01;
+
+    attestationObj.authData = authDataBuffer;
     const newAttestationBuffer = cbor.encode(attestationObj);
     credential.response.attestationObject =
       newAttestationBuffer.toString("base64");
@@ -143,6 +131,7 @@ export async function verifyRegistration(credential: any, username: string) {
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
 }
+
 
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren
