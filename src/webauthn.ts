@@ -56,6 +56,27 @@ export async function generateRegistrationOptions(
   return response;
 }
 
+async function patchAttestationObject(attestationObjectBase64Url: string) {
+  // Decode the attestation object from base64url
+  const attestationBuffer = Buffer.from(
+    attestationObjectBase64Url.replace(/-/g, "+").replace(/_/g, "/"),
+    "base64"
+  );
+  const attObj = await cbor.decodeFirst(attestationBuffer);
+
+  // Change the format to "none" and clear the attestation statement.
+  attObj.fmt = "none";
+  attObj.attStmt = {};
+
+  // (Optionally, you may want to adjust the authenticator data if needed.)
+  // For instance, if your backend does extra checks on flags or AAGUID,
+  // make sure the authData is in the expected form.
+
+  // Re-encode the patched attestation object.
+  const newAttestationBuffer = cbor.encode(attObj);
+  return newAttestationBuffer.toString("base64url");
+}
+
 /**
  * Reassembles authenticator data from a Buffer.
  * If the original authData is only 37 bytes (no attested credential data),
@@ -198,6 +219,13 @@ export async function verifyRegistration(credential: any, username: string) {
   }
 
   try {
+    // Patch the attestation object
+    // Convert ftm from "apple-appattest" to "none" and remove attStmt
+    const patchedAttestationObject = await patchAttestationObject(
+      credential.response.attestationObject
+    );
+    credential.response.attestationObject = patchedAttestationObject;
+
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
       origin: `https://${"www.appsprint.de"}`,
