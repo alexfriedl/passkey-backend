@@ -6,6 +6,7 @@ import {
 } from "./challenge-store";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
+import { adjustAttestationObject } from "./attestation";
 
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
@@ -103,6 +104,16 @@ export async function verifyRegistration(credential: any, username: string) {
   credential.id = base64UrlToArrayBuffer(credential.id);
 
   try {
+    // Passe das Attestation-Objekt an, bevor du fido2.attestationResult aufrufst
+    credential.response.attestationObject = await adjustAttestationObject(
+      credential.response.attestationObject
+    );
+  } catch (e) {
+    console.error("[DEBUG] Fehler beim Anpassen des Attestation Objects:", e);
+    throw new Error("Fehler beim Anpassen des Attestation Objects.");
+  }
+
+  try {
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
@@ -115,16 +126,7 @@ export async function verifyRegistration(credential: any, username: string) {
       JSON.stringify(attestationResult.authnrData, null, 2)
     );
 
-    // Erzwinge einen Type Cast auf any, um auf "fmt" zugreifen zu können
-    const authData = attestationResult.authnrData as any;
-    if (authData && authData.fmt === "apple-appattest") {
-      console.log(
-        "[DEBUG] Attestation-Format 'apple-appattest' gefunden, setze auf 'none'"
-      );
-      authData.fmt = "none";
-    }
-
-    // Validierung der Attestation
+    // Validierung der Attestation (sollte jetzt kein apple-appattest mehr sein)
     validateAttestation(attestationResult.authnrData);
 
     return attestationResult;
