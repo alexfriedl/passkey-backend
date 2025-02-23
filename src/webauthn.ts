@@ -63,10 +63,13 @@ async function patchAttestationObject(attestationObjectBase64Url: string) {
     "base64"
   );
   const attObj = await cbor.decodeFirst(attestationBuffer);
+  console.log("Decoded attestation object:", JSON.stringify(attObj, null, 2));
 
   // Change the format to "none" and clear the attestation statement.
   attObj.fmt = "none";
   attObj.attStmt = {};
+  console.log("Patched attestation object:", JSON.stringify(attObj, null, 2));
+
 
   // (Optionally, you may want to adjust the authenticator data if needed.)
   // For instance, if your backend does extra checks on flags or AAGUID,
@@ -224,6 +227,7 @@ export async function verifyRegistration(credential: any, username: string) {
     const patchedAttestationObject = await patchAttestationObject(
       credential.response.attestationObject
     );
+    console.log("Patched attestation object (Base64URL):", patchedAttestationObject);
     credential.response.attestationObject = patchedAttestationObject;
 
     const attestationResult = await fido2.attestationResult(credential, {
@@ -236,6 +240,7 @@ export async function verifyRegistration(credential: any, username: string) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
+  
 }
 
 /**
