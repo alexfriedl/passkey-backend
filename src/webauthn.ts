@@ -103,15 +103,30 @@ export async function verifyRegistration(credential: any, username: string) {
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // Falls ein attestationObject vorhanden ist, passe es an
+  // Passe das attestationObject an (für den "none"-Flow)
   if (credential.response && credential.response.attestationObject) {
     // Hier nehmen wir an, dass das attestationObject als base64-String vorliegt
     const originalBuffer = Buffer.from(
       credential.response.attestationObject,
       "base64"
     );
-    // Rufe die Anpassungsfunktion auf, die bereits CBOR decodiert, modifiziert und encodiert zurückgibt
-    credential.response.attestationObject = adjustAttestationObject(originalBuffer);
+    // adjustAttestationObject soll einen CBOR-codierten Buffer oder ArrayBuffer zurückliefern
+    credential.response.attestationObject =
+      adjustAttestationObject(originalBuffer);
+  }
+
+  // WICHTIG: Passe auch den challenge-Wert im clientDataJSON an,
+  // da er als base64-String (mit "/" statt "_" wegen JSON-Escaping) vorliegt
+  if (credential.response && credential.response.clientDataJSON) {
+    // clientDataJSON liegt als ArrayBuffer vor – in einen Buffer umwandeln
+    const clientDataBuffer = Buffer.from(credential.response.clientDataJSON);
+    const clientDataStr = clientDataBuffer.toString("utf8");
+    const clientData = JSON.parse(clientDataStr);
+    // Ersetze alle "/" durch "_" (Base64url erwartet diese Zeichen)
+    clientData.challenge = clientData.challenge.replace(/\//g, "_");
+    // Re-encode als UTF-8 JSON, und speichere als ArrayBuffer
+    const newClientDataBuffer = Buffer.from(JSON.stringify(clientData), "utf8");
+    credential.response.clientDataJSON = newClientDataBuffer.buffer;
   }
 
   try {
@@ -136,7 +151,6 @@ export async function verifyRegistration(credential: any, username: string) {
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
 }
-
 
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren
