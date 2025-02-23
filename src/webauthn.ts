@@ -57,6 +57,63 @@ export async function generateRegistrationOptions(
 }
 
 /**
+ * Reassembles authenticator data from a Buffer by parsing its fields and concatenating them
+ * into a new, clean ArrayBuffer.
+ */
+function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
+  // Check that the buffer is at least long enough for the fixed part:
+  if (authDataBuffer.length < 37) {
+    throw new Error("authDataBuffer too short");
+  }
+  // 1. rpIdHash: 32 bytes
+  const rpIdHash = authDataBuffer.slice(0, 32);
+  // 2. flags: 1 byte
+  const flags = authDataBuffer.slice(32, 33);
+  // 3. signCount: 4 bytes
+  const signCount = authDataBuffer.slice(33, 37);
+
+  // Check if attested credential data is present:
+  // According to spec, if flag AT (0x40) is set, attested credential data is present.
+  const flagByte = flags[0];
+  const attestedDataPresent = (flagByte & 0x40) !== 0;
+  if (!attestedDataPresent) {
+    // If not present, just return the fixed part:
+    return Buffer.concat([rpIdHash, flags, signCount]).buffer;
+  }
+
+  // The attested credential data begins at offset 37:
+  if (authDataBuffer.length < 37 + 16 + 2) {
+    throw new Error("authDataBuffer too short for attested credential data");
+  }
+  // 4. AAGUID: 16 bytes
+  const aaguid = authDataBuffer.slice(37, 37 + 16);
+  // 5. credential ID length: 2 bytes (big-endian)
+  const credIdLenBuf = authDataBuffer.slice(37 + 16, 37 + 16 + 2);
+  const credIdLen = credIdLenBuf.readUInt16BE(0);
+  // 6. credential ID: credIdLen bytes
+  const credId = authDataBuffer.slice(37 + 16 + 2, 37 + 16 + 2 + credIdLen);
+  // 7. credential public key: remainder of the buffer
+  const credentialPublicKey = authDataBuffer.slice(37 + 16 + 2 + credIdLen);
+
+  // Reassemble all parts into a new Buffer:
+  const newAuthData = Buffer.concat([
+    rpIdHash,
+    flags,
+    signCount,
+    aaguid,
+    credIdLenBuf,
+    credId,
+    credentialPublicKey,
+  ]);
+
+  // Return a "clean" ArrayBuffer:
+  return newAuthData.buffer.slice(
+    newAuthData.byteOffset,
+    newAuthData.byteOffset + newAuthData.byteLength
+  );
+}
+
+/**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren
  */
 export async function verifyRegistration(credential: any, username: string) {
@@ -103,25 +160,21 @@ export async function verifyRegistration(credential: any, username: string) {
     attestationObj.fmt = "none";
     attestationObj.attStmt = {};
 
-    // AuthenticatorData patchen:
+    // Get authData as a Buffer:
     let authDataBuffer = Buffer.isBuffer(attestationObj.authData)
       ? attestationObj.authData
       : Buffer.from(attestationObj.authData);
 
-    // Setze den rpIdHash (erste 32 Bytes) auf den erwarteten Hash
+    // Patch rpIdHash and flags:
     const expectedRpIdHash = createHash("sha256")
       .update("www.appsprint.de")
       .digest();
     expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
-
-    // Setze den Flags-Byte (Index 32) direkt auf 0x01 (User Presence)
+    // Set the flags byte (index 32) directly to 0x01 (User Presence)
     authDataBuffer[32] = 0x01;
 
-    // Erstelle einen "sauberen" Uint8Array, der genau die Länge von authDataBuffer hat.
-    const cleanAuthData = new Uint8Array(authDataBuffer.length);
-    cleanAuthData.set(authDataBuffer);
-    // cleanAuthData.buffer ist jetzt ein ArrayBuffer, der exakt die richtigen Bytes enthält.
-    attestationObj.authData = cleanAuthData.buffer;
+    // Now reassemble the authData manually into a clean ArrayBuffer:
+    attestationObj.authData = reassembleAuthData(authDataBuffer);
 
     const newAttestationBuffer = cbor.encode(attestationObj);
     credential.response.attestationObject =
