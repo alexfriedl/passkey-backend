@@ -68,15 +68,13 @@ export async function verifyRegistration(credential: any, username: string) {
   console.log("📥 Credential für Verifizierung:", JSON.stringify(credential, null, 2));
   deleteChallenge(username);
 
+  // Konvertiere id und rawId in ArrayBuffer
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // --- STEP 1: clientDataJSON anpassen ---
+  // STEP 1: clientDataJSON anpassen
   {
-    const clientDataBuffer = Buffer.from(
-      credential.response.clientDataJSON,
-      "base64"
-    );
+    const clientDataBuffer = Buffer.from(credential.response.clientDataJSON, "base64");
     let clientData;
     try {
       clientData = JSON.parse(clientDataBuffer.toString("utf8"));
@@ -85,17 +83,12 @@ export async function verifyRegistration(credential: any, username: string) {
     }
     clientData.challenge = challengeBase64;
     const newClientDataStr = JSON.stringify(clientData);
-    credential.response.clientDataJSON =
-      Buffer.from(newClientDataStr).toString("base64");
+    credential.response.clientDataJSON = Buffer.from(newClientDataStr).toString("base64");
   }
-  // --- END STEP 1 ---
 
-  // --- STEP 2: Attestation-Objekt anpassen ---
+  // STEP 2: Attestation-Objekt anpassen
   {
-    const attestationBuffer = Buffer.from(
-      credential.response.attestationObject,
-      "base64"
-    );
+    const attestationBuffer = Buffer.from(credential.response.attestationObject, "base64");
     let attestationObj = await cbor.decodeFirst(attestationBuffer);
     attestationObj.fmt = "none";
     attestationObj.attStmt = {};
@@ -104,20 +97,24 @@ export async function verifyRegistration(credential: any, username: string) {
     let authDataBuffer = Buffer.isBuffer(attestationObj.authData)
       ? attestationObj.authData
       : Buffer.from(attestationObj.authData);
-    const expectedRpIdHash = createHash("sha256")
-      .update("www.appsprint.de")
-      .digest();
+
+    // Debug: Logge den Flags-Byte-Wert vor dem Patch
+    console.log("Vor dem Patch, authDataBuffer[32]:", authDataBuffer[32]);
+
+    // Setze den rpIdHash
+    const expectedRpIdHash = createHash("sha256").update("www.appsprint.de").digest();
     expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
 
-    // Setze den User Presence Bit (0x01), falls noch nicht gesetzt
-    authDataBuffer[32] = authDataBuffer[32] | 0x01;
+    // Setze den Flags-Byte direkt auf 0x01 (User Presence)
+    authDataBuffer[32] = 0x01;
+
+    // Debug: Logge den Flags-Byte-Wert nach dem Patch
+    console.log("Nach dem Patch, authDataBuffer[32]:", authDataBuffer[32]);
 
     attestationObj.authData = authDataBuffer;
     const newAttestationBuffer = cbor.encode(attestationObj);
-    credential.response.attestationObject =
-      newAttestationBuffer.toString("base64");
+    credential.response.attestationObject = newAttestationBuffer.toString("base64");
   }
-  // --- END STEP 2 ---
 
   try {
     const attestationResult = await fido2.attestationResult(credential, {
