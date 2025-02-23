@@ -25,24 +25,23 @@ const fido2 = new Fido2Lib({
 export async function generateRegistrationOptions(
   username: string
 ): Promise<PublicKeyCredentialCreationOptions> {
-  // Hole Optionen – challenge ist hier ein ArrayBuffer (laut Typdefinition)
+  // Hole die Optionen von fido2-lib. Dabei ist options.challenge ein ArrayBuffer.
   const options = await fido2.attestationOptions();
 
-  // Wandle die Challenge in einen Base64URL-String um und speichere sie für spätere Verifikation
+  // Konvertiere die Challenge in einen Base64URL-String und speichere ihn.
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   storeChallenge(username, challengeBase64);
 
-  // Generiere eine User-ID als ArrayBuffer (aber sende sie als Base64URL an den Client, falls nötig)
-  const userIdBuffer = randomBytes(16); // Buffer (Node.js)
+  // Generiere eine User-ID und wandle sie in einen Base64URL-String um.
+  const userIdBuffer = randomBytes(16);
   const userIdBase64 = arrayBufferToBase64Url(userIdBuffer);
 
-  // Erstelle den Response-Objekt gemäß Typ (challenge als ArrayBuffer!)
-  // Hier wandeln wir den Base64-String wieder in einen ArrayBuffer um, damit der Typ stimmt.
+  // Erstelle das Response-Objekt mit Challenge und User-ID als Strings.
   const response: PublicKeyCredentialCreationOptions = {
     ...options,
-    challenge: base64UrlToArrayBuffer(challengeBase64),
+    challenge: challengeBase64, // als Base64URL-String
     user: {
-      id: base64UrlToArrayBuffer(userIdBase64),
+      id: userIdBase64, // als Base64URL-String
       name: username,
       displayName: username,
     },
@@ -176,7 +175,7 @@ export async function verifyAuthentication(
 /**
  * Konvertiert einen ArrayBuffer in einen Base64URL-kodierten String.
  */
-export function arrayBufferToBase64Url(buffer: ArrayBuffer): string {
+export function arrayBufferToBase64Url(buffer: ArrayBuffer): any {
   const binary = new Uint8Array(buffer);
   let base64 = "";
   for (let i = 0; i < binary.byteLength; i++) {
