@@ -93,7 +93,7 @@ export async function verifyRegistration(credential: any, username: string) {
       Buffer.from(newClientDataStr).toString("base64");
   }
 
-  // --- STEP 2: Attestation-Objekt anpassen ---
+  // STEP 2: Attestation-Objekt anpassen
   {
     const attestationBuffer = Buffer.from(
       credential.response.attestationObject,
@@ -103,25 +103,33 @@ export async function verifyRegistration(credential: any, username: string) {
     attestationObj.fmt = "none";
     attestationObj.attStmt = {};
 
-    // AuthenticatorData patchen:
-    let authDataBuffer = Buffer.isBuffer(attestationObj.authData)
-      ? attestationObj.authData
-      : Buffer.from(attestationObj.authData);
+    // Stelle sicher, dass authData als reiner ArrayBuffer vorliegt:
+    let authData: ArrayBuffer;
+    if (attestationObj.authData instanceof ArrayBuffer) {
+      authData = attestationObj.authData;
+    } else if (Buffer.isBuffer(attestationObj.authData)) {
+      authData = attestationObj.authData.buffer.slice(
+        attestationObj.authData.byteOffset,
+        attestationObj.authData.byteOffset + attestationObj.authData.byteLength
+      );
+    } else {
+      authData = Buffer.from(attestationObj.authData).buffer;
+    }
 
-    // Setze rpIdHash (erste 32 Bytes) auf den erwarteten Hash
+    // Erstelle eine Uint8Array-Ansicht, um den Puffer zu patchen
+    let authDataView = new Uint8Array(authData);
+
+    // Patch: Setze die ersten 32 Bytes (rpIdHash) auf den erwarteten Hash
     const expectedRpIdHash = createHash("sha256")
       .update("www.appsprint.de")
       .digest();
-    expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
+    authDataView.set(new Uint8Array(expectedRpIdHash), 0);
 
-    // Setze Flags-Byte (Index 32) direkt auf 0x01 (User Presence)
-    authDataBuffer[32] = 0x01;
+    // Patch: Setze den Flags-Byte (Index 32) direkt auf 0x01 (User Presence)
+    authDataView[32] = 0x01;
 
-    // Stelle sicher, dass authData ein korrekt geschnittenes ArrayBuffer ist:
-    attestationObj.authData = authDataBuffer.buffer.slice(
-      authDataBuffer.byteOffset,
-      authDataBuffer.byteOffset + authDataBuffer.byteLength
-    );
+    // Jetzt setzen wir authData als einen neuen, "sauberen" ArrayBuffer:
+    attestationObj.authData = authDataView.slice().buffer;
 
     const newAttestationBuffer = cbor.encode(attestationObj);
     credential.response.attestationObject =
