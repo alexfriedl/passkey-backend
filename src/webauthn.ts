@@ -111,17 +111,15 @@ export async function verifyRegistration(credential: any, username: string) {
       "base64"
     );
     // adjustAttestationObject soll einen CBOR-codierten Buffer oder ArrayBuffer zurückliefern
-    // Wir erwarten hier weiterhin einen Buffer (oder ArrayBuffer)
     credential.response.attestationObject =
       adjustAttestationObject(originalBuffer);
   }
 
-  // Wir passen nun den clientDataJSON-Wert an:
-  // Wenn clientDataJSON als String vorliegt, dekodiere ihn, parse das JSON,
-  // und re-serialisiere es als Base64url-String (ohne Padding)
+  // Konvertiere clientDataJSON in einen gültigen Base64url‑String
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
     if (typeof credential.response.clientDataJSON === "string") {
+      // Zuerst von Base64 (Standard) in UTF-8-String dekodieren
       clientDataStr = Buffer.from(
         credential.response.clientDataJSON,
         "base64"
@@ -133,15 +131,16 @@ export async function verifyRegistration(credential: any, username: string) {
     }
     const clientData = JSON.parse(clientDataStr);
 
-    // Optional: Falls Anpassungen am Challenge-Wert gewünscht sind,
-    // kannst du hier clientData.challenge anpassen. (Vorsicht: Dies verändert die Originaldaten!)
-    // Beispiel (nur falls wirklich notwendig):
-    // clientData.challenge = clientData.challenge.replace(/\//g, "_");
+    // Hier konvertieren wir den Challenge-Wert:
+    // Er nimmt an, dass der Challenge-Wert aktuell in Standard-Base64 kodiert ist.
+    // Wir dekodieren ihn und kodieren ihn dann als Base64url.
+    if (clientData.challenge) {
+      const challengeBytes = Buffer.from(clientData.challenge, "base64");
+      clientData.challenge = challengeBytes.toString("base64url");
+    }
 
-    // Re-serialize als UTF-8-String...
+    // Serialisiere das Objekt wieder und kodieren als Base64url-String
     const newClientDataStr = JSON.stringify(clientData);
-    // ...und als Base64url (ohne Padding) codieren.
-    // (Node ab v15 unterstützt "base64url" als Encoding; bei älteren Versionen ggf. manuell umwandeln)
     credential.response.clientDataJSON = Buffer.from(
       newClientDataStr,
       "utf8"
