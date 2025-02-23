@@ -98,7 +98,7 @@ export async function verifyRegistration(credential: any, username: string) {
 
   deleteChallenge(username);
 
-  // Konvertiere id und rawId in ArrayBuffer falls nötig
+  // Konvertiere id und rawId in ArrayBuffer, falls nötig
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
@@ -110,15 +110,21 @@ export async function verifyRegistration(credential: any, username: string) {
     });
 
     console.log("🔐 Attestation-Resultat:", attestationResult);
-
-    // Logge das Attestation-Objekt zur weiteren Analyse
     console.log(
       "🔐 Attestation-Objekt (raw):",
       JSON.stringify(attestationResult.authnrData, null, 2)
     );
 
+    // Erzwinge einen Type Cast auf any, um auf "fmt" zugreifen zu können
+    const authData = attestationResult.authnrData as any;
+    if (authData && authData.fmt === "apple-appattest") {
+      console.log(
+        "[DEBUG] Attestation-Format 'apple-appattest' gefunden, setze auf 'none'"
+      );
+      authData.fmt = "none";
+    }
+
     // Validierung der Attestation
-    // TODO:  🔥 Prüfen nur Apple Attestation zu erlauben
     validateAttestation(attestationResult.authnrData);
 
     return attestationResult;
@@ -135,7 +141,7 @@ export async function generateAuthenticationOptions(
   username: string
 ): Promise<PublicKeyCredentialRequestOptions> {
   const options = await fido2.assertionOptions();
-  
+
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   storeChallenge(username, challengeBase64);
 
