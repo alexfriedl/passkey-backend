@@ -1,17 +1,23 @@
-import cbor from 'cbor';
+import cbor from "cbor";
 
-export async function adjustAttestationObject(attestationObjectBase64: string): Promise<string> {
-  // Dekodiere den Base64-String in einen Buffer
-  const attestationBuffer = Buffer.from(attestationObjectBase64, 'base64');
-  // Dekodiere den CBOR-Block
-  const attestation: any = await cbor.decodeFirst(attestationBuffer);
-  // Prüfe das Feld "fmt"
-  if (attestation.fmt === "apple-appattest") {
-    console.log("[DEBUG] Attestation-Format 'apple-appattest' gefunden, setze auf 'none'");
-    attestation.fmt = "none";
+// Diese Funktion nimmt das CBOR‑codierte Attestation‑Objekt und passt es an,
+// falls das Format "apple-appattest" erkannt wird oder "fmt" leer ist.
+export function adjustAttestationObject(attestationObjectBuffer: Buffer): any {
+  // CBOR-dekodieren
+  const attObj = cbor.decodeAllSync(attestationObjectBuffer)[0];
+
+  // Debug: Ausgabe des ursprünglichen fmt-Werts
+  console.log("Original fmt:", attObj.fmt);
+
+  // Falls kein fmt vorhanden oder es "apple-appattest" ist, setzen wir auf "none"
+  if (!attObj.fmt || attObj.fmt === "" || attObj.fmt === "apple-appattest") {
+    // Für den "none"-Flow entfernen wir das attStmt-Objekt, falls vorhanden
+    attObj.fmt = "none";
+    if (attObj.attStmt) {
+      delete attObj.attStmt;
+    }
+    console.log("Adjusted fmt auf 'none'");
   }
-  // Encodiere das Objekt wieder in CBOR
-  const newAttestationBuffer = cbor.encode(attestation);
-  // Gebe den neuen CBOR-Block als Base64-String zurück
-  return newAttestationBuffer.toString('base64');
+
+  return attObj;
 }

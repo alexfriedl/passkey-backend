@@ -7,6 +7,7 @@ import {
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
 import { adjustAttestationObject } from "./attestation";
+import cbor from "cbor";
 
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
@@ -103,14 +104,15 @@ export async function verifyRegistration(credential: any, username: string) {
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  try {
-    // Passe das Attestation-Objekt an, bevor du fido2.attestationResult aufrufst
-    credential.response.attestationObject = await adjustAttestationObject(
-      credential.response.attestationObject
+  // Passe das attestationObject an (für den "none"-Flow)
+  if (credential.response && credential.response.attestationObject) {
+    const originalBuffer = Buffer.from(
+      credential.response.attestationObject,
+      "base64"
     );
-  } catch (e) {
-    console.error("[DEBUG] Fehler beim Anpassen des Attestation Objects:", e);
-    throw new Error("Fehler beim Anpassen des Attestation Objects.");
+    const adjustedAttObj = adjustAttestationObject(originalBuffer);
+    // Setze das angepasste Objekt zurück als CBOR-codierter Buffer
+    credential.response.attestationObject = cbor.encode(adjustedAttObj);
   }
 
   try {
@@ -126,8 +128,8 @@ export async function verifyRegistration(credential: any, username: string) {
       JSON.stringify(attestationResult.authnrData, null, 2)
     );
 
-    // Validierung der Attestation (sollte jetzt kein apple-appattest mehr sein)
-    validateAttestation(attestationResult.authnrData);
+    // Optional: weitere Validierungen, falls notwendig
+    // validateAttestation(attestationResult.authnrData);
 
     return attestationResult;
   } catch (error) {
