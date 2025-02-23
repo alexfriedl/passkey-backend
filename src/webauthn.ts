@@ -20,25 +20,6 @@ const fido2 = new Fido2Lib({
 });
 
 /**
- * Attestation validieren (Nur Apple Secure Enclave)
- */
-// TODO: fmt apple prüfen
-function validateAttestation(attestationObject: any) {
-  console.log("🔐 Attestation-Objekt:", attestationObject);
-  // Falls attestationObject eine Map ist, benutze .get("fmt")
-  const fmt =
-    attestationObject instanceof Map
-      ? attestationObject.get("fmt")
-      : attestationObject.fmt;
-  console.log("fmt:", fmt);
-  if (!fmt || (fmt !== "apple" && fmt !== "none")) {
-    throw new Error(
-      "Ungültige Attestation: Nur Apple Secure Enclave wird akzeptiert."
-    );
-  }
-}
-
-/**
  * Registrierung: Optionen für FIDO2-Passkey-Registrierung generieren
  */
 
@@ -108,10 +89,12 @@ export async function verifyRegistration(credential: any, username: string) {
     credential.response.attestationObject
   );
   let attestationObj = await cbor.decodeFirst(attestationBuffer);
+  // Setze das Format auf "none" und leere attStmt, da 'none' keine Felder erwartet
   attestationObj.fmt = "none";
+  attestationObj.attStmt = {}; // oder delete attestationObj.attStmt;
   // Encodiere das modifizierte Objekt zurück in CBOR
   const newAttestationBuffer = cbor.encode(attestationObj);
-  // Stelle sicher, dass du einen Base64-String übergibst, da fido2-lib dies erwartet
+  // Übergib einen Base64-String an fido2-lib
   credential.response.attestationObject =
     newAttestationBuffer.toString("base64");
   // ---------------------------------------------------
