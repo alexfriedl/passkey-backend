@@ -12,6 +12,9 @@
     ]
   },
   "webcredentials": {
-    "apps": ["K6WRJB8J4N.localkeyboys.LocalKey.AutoFillCredentialProvider"]
+    "apps": [
+      "K6WRJB8J4N.localkeyboys.LocalKey",
+      "K6WRJB8J4N.localkeyboys.LocalKey.AutoFillCredentialProvider"
+    ]
   }
 }
