@@ -83,7 +83,10 @@ export async function verifyRegistration(credential: any, username: string) {
   // Passe das attestationObject an (für den "none"-Flow)
   if (credential.response && credential.response.attestationObject) {
     // Konvertiere den Base64-String in einen Buffer
-    const originalBuffer = Buffer.from(credential.response.attestationObject, "base64");
+    const originalBuffer = Buffer.from(
+      credential.response.attestationObject,
+      "base64"
+    );
     // Dekodiere das CBOR-Objekt
     const attestationObj = cbor.decodeAllSync(originalBuffer)[0];
     console.log("Original attestation object:", attestationObj);
@@ -94,26 +97,39 @@ export async function verifyRegistration(credential: any, username: string) {
     }
     // Encodiere das Objekt wieder per CBOR
     const newAttestationBuffer = cbor.encode(attestationObj);
-    // Speichere als ArrayBuffer (Uint8Array.from(...).buffer liefert einen ArrayBuffer)
-    credential.response.attestationObject = Uint8Array.from(newAttestationBuffer).buffer;
+    // Konvertiere in einen ArrayBuffer (nicht den Node-Buffer verwenden)
+    credential.response.attestationObject = newAttestationBuffer.buffer.slice(
+      newAttestationBuffer.byteOffset,
+      newAttestationBuffer.byteOffset + newAttestationBuffer.byteLength
+    );
   }
 
-  // Stelle sicher, dass clientDataJSON als UTF-8-Buffer vorliegt und überschreibe den challenge-Wert mit dem gespeicherten Wert
+  // Stelle sicher, dass clientDataJSON als ArrayBuffer vorliegt
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
     if (typeof credential.response.clientDataJSON === "string") {
       // Dekodiere den Base64-String in einen UTF-8-String
-      clientDataStr = Buffer.from(credential.response.clientDataJSON, "base64").toString("utf8");
+      clientDataStr = Buffer.from(
+        credential.response.clientDataJSON,
+        "base64"
+      ).toString("utf8");
     } else {
-      clientDataStr = Buffer.from(credential.response.clientDataJSON).toString("utf8");
+      clientDataStr = Buffer.from(credential.response.clientDataJSON).toString(
+        "utf8"
+      );
     }
-    // Parste das JSON
+    // Parse das JSON
     const clientData = JSON.parse(clientDataStr);
-    // Überschreibe den challenge-Wert (damit er exakt dem gespeicherten Base64url-Wert entspricht)
+    // Überschreibe den Challenge-Wert mit dem gespeicherten Wert (Base64url)
     clientData.challenge = challengeBase64;
-    // Serialisiere und speichere als UTF-8-Buffer
+    // Serialisiere das Objekt
     const newClientDataStr = JSON.stringify(clientData);
-    credential.response.clientDataJSON = Buffer.from(newClientDataStr, "utf8");
+    // Erzeuge einen UTF-8-Buffer und konvertiere diesen in einen ArrayBuffer
+    const newClientDataBuffer = Buffer.from(newClientDataStr, "utf8");
+    credential.response.clientDataJSON = newClientDataBuffer.buffer.slice(
+      newClientDataBuffer.byteOffset,
+      newClientDataBuffer.byteOffset + newClientDataBuffer.byteLength
+    );
   }
 
   try {
