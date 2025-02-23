@@ -57,61 +57,37 @@ export async function generateRegistrationOptions(
 }
 
 /**
- * Reassembles authenticator data from a Buffer by parsing its fields according to the spec.
- * The structure is:
- *   - rpIdHash: 32 bytes
- *   - flags: 1 byte
- *   - signCount: 4 bytes
- *   - [if attested credential data present (flags & 0x40)]:
- *       - AAGUID: 16 bytes
- *       - Credential ID length: 2 bytes (big-endian)
- *       - Credential ID: (length from previous field)
- *       - Credential public key: remaining bytes
+ * Reassembles authenticator data from a Buffer.
+ * If the original authData is only 37 bytes (no attested credential data),
+ * this function simulates minimal attested data (dummy AAGUID and zero-length credential ID).
  */
 function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
-  if (authDataBuffer.length < 37) {
+  const fixedPartLength = 37; // rpIdHash (32) + flags (1) + counter (4)
+  if (authDataBuffer.length === fixedPartLength) {
+    // No attested credential data is present.
+    // Simulate minimal attested credential data:
+    // - Dummy AAGUID: 16 bytes (all zeros)
+    // - Credential ID Length: 2 bytes, set to 0
+    const aaguid = Buffer.alloc(16, 0);
+    const credIdLen = Buffer.alloc(2, 0);
+    const dummyAttestedData = Buffer.concat([aaguid, credIdLen]);
+    // Update the fixed part's flags to indicate attested data is present:
+    const newFixed = Buffer.from(authDataBuffer.slice(0, fixedPartLength));
+    newFixed[32] = newFixed[32] | 0x40; // Set AT flag (0x40) along with UP flag (already set as 0x01)
+    const newAuthData = Buffer.concat([newFixed, dummyAttestedData]);
+    return newAuthData.buffer.slice(
+      newAuthData.byteOffset,
+      newAuthData.byteOffset + newAuthData.byteLength
+    );
+  } else if (authDataBuffer.length > fixedPartLength) {
+    // Attested data is already present. Return a clean copy:
+    return authDataBuffer.buffer.slice(
+      authDataBuffer.byteOffset,
+      authDataBuffer.byteOffset + authDataBuffer.byteLength
+    );
+  } else {
     throw new Error("authDataBuffer is too short");
   }
-
-  // Extract fixed fields:
-  const rpIdHash = authDataBuffer.slice(0, 32);
-  const flags = authDataBuffer.slice(32, 33);
-  const signCount = authDataBuffer.slice(33, 37);
-
-  // Check if attested credential data is present (bit 6 of flags, 0x40):
-  const flagByte = flags[0];
-  if ((flagByte & 0x40) === 0) {
-    // No attested credential data – return the fixed part:
-    return Buffer.concat([rpIdHash, flags, signCount]).buffer.slice(0, 37);
-  }
-
-  // Attested credential data is present.
-  // AAGUID: 16 bytes (offset 37 to 37+16)
-  const aaguid = authDataBuffer.slice(37, 37 + 16);
-  // Credential ID length: 2 bytes (big-endian) immediately following AAGUID
-  const credIdLenBuf = authDataBuffer.slice(37 + 16, 37 + 16 + 2);
-  const credIdLen = credIdLenBuf.readUInt16BE(0);
-  // Credential ID:
-  const credId = authDataBuffer.slice(37 + 16 + 2, 37 + 16 + 2 + credIdLen);
-  // Credential public key: the remaining bytes
-  const pubKey = authDataBuffer.slice(37 + 16 + 2 + credIdLen);
-
-  // Reassemble all parts:
-  const newAuthData = Buffer.concat([
-    rpIdHash,
-    flags,
-    signCount,
-    aaguid,
-    credIdLenBuf,
-    credId,
-    pubKey,
-  ]);
-
-  // Return a clean ArrayBuffer that exactly represents newAuthData:
-  return newAuthData.buffer.slice(
-    newAuthData.byteOffset,
-    newAuthData.byteOffset + newAuthData.byteLength
-  );
 }
 
 /**
@@ -166,30 +142,31 @@ export async function verifyRegistration(credential: any, username: string) {
       ? attestationObj.authData
       : Buffer.from(attestationObj.authData);
 
-    // Patch rpIdHash and flags:
+    // Patch rpIdHash (first 32 bytes)
     const expectedRpIdHash = createHash("sha256")
       .update("www.appsprint.de")
       .digest();
     expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
-    authDataBuffer[32] = 0x01;
 
-    // Reassemble authData manually (using the reassembleAuthData function defined earlier):
+    // Ensure the UP flag is set (bit 0, 0x01)
+    authDataBuffer[32] = authDataBuffer[32] | 0x01;
+
+    // Reassemble authData:
     const cleanAuthDataBuffer = reassembleAuthData(authDataBuffer);
-
-    // Log the clean authData details:
     console.log("Clean authData length:", cleanAuthDataBuffer.byteLength);
     console.log(
       "Clean authData (hex):",
       Buffer.from(cleanAuthDataBuffer).toString("hex")
     );
 
-    // Optionally, if you want to log the AAGUID portion (bytes 37 to 52):
-    const aaguidHex = Buffer.from(cleanAuthDataBuffer)
-      .toString("hex")
-      .substr(74, 32);
-    console.log("AAGUID (hex):", aaguidHex);
+    // Optionally log the AAGUID portion (bytes 37 to 52, if present):
+    if (cleanAuthDataBuffer.byteLength >= 55) {
+      const aaguidHex = Buffer.from(cleanAuthDataBuffer)
+        .toString("hex")
+        .substr(74, 32);
+      console.log("AAGUID (hex):", aaguidHex);
+    }
 
-    // Finally, set the reassembled authData:
     attestationObj.authData = cleanAuthDataBuffer;
 
     const newAttestationBuffer = cbor.encode(attestationObj);
