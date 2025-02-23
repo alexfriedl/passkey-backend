@@ -135,16 +135,16 @@ export async function generateAuthenticationOptions(
   username: string
 ): Promise<PublicKeyCredentialRequestOptions> {
   const options = await fido2.assertionOptions();
-
+  
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   storeChallenge(username, challengeBase64);
 
   return {
     ...options,
-    challenge: options.challenge,
+    challenge: challengeBase64 as unknown as BufferSource, // ggf. anpassen, damit die iOS-Seite den String erwartet
     allowCredentials: options.allowCredentials?.map((cred) => ({
       ...cred,
-      transports: cred.transports as AuthenticatorTransport[] | undefined, // 🔥 Fix für Typfehler in `allowCredentials`
+      transports: cred.transports as AuthenticatorTransport[] | undefined,
     })),
   };
 }
