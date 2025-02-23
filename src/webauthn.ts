@@ -7,7 +7,6 @@ import {
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
 import { adjustAttestationObject } from "./attestation";
-import cbor from "cbor";
 
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
@@ -104,17 +103,15 @@ export async function verifyRegistration(credential: any, username: string) {
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // Passe das attestationObject an (für den "none"-Flow)
+  // Falls ein attestationObject vorhanden ist, passe es an
   if (credential.response && credential.response.attestationObject) {
+    // Hier nehmen wir an, dass das attestationObject als base64-String vorliegt
     const originalBuffer = Buffer.from(
       credential.response.attestationObject,
       "base64"
     );
-    const adjustedAttObj = adjustAttestationObject(originalBuffer);
-
-    // Setze das angepasste Objekt zurück als CBOR-codierter Buffer
-    const encoded = cbor.encode(adjustedAttObj);
-    credential.response.attestationObject = Uint8Array.from(encoded).buffer;
+    // Rufe die Anpassungsfunktion auf, die bereits CBOR decodiert, modifiziert und encodiert zurückgibt
+    credential.response.attestationObject = adjustAttestationObject(originalBuffer);
   }
 
   try {
@@ -139,6 +136,7 @@ export async function verifyRegistration(credential: any, username: string) {
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
 }
+
 
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren

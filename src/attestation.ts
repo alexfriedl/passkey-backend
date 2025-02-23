@@ -1,23 +1,27 @@
 import cbor from "cbor";
 
-// Diese Funktion nimmt das CBOR‑codierte Attestation‑Objekt und passt es an,
-// falls das Format "apple-appattest" erkannt wird oder "fmt" leer ist.
-export function adjustAttestationObject(attestationObjectBuffer: Buffer): any {
-  // CBOR-dekodieren
-  const attObj = cbor.decodeAllSync(attestationObjectBuffer)[0];
+/**
+ * Adjusts the attestationObject for a "none" attestation.
+ * If the original fmt is "apple-appattest", set fmt to "none" and replace attStmt with an empty object.
+ */
+export function adjustAttestationObject(attestationObject: ArrayBuffer | Buffer): ArrayBuffer {
+  // Decodiere das attestationObject mittels CBOR
+  const buffer = Buffer.isBuffer(attestationObject)
+    ? attestationObject
+    : Buffer.from(attestationObject);
+  const decoded = cbor.decodeAllSync(buffer)[0];
 
-  // Debug: Ausgabe des ursprünglichen fmt-Werts
-  console.log("Original fmt:", attObj.fmt);
+  console.log("Original attestation fmt:", decoded.fmt);
 
-  // Falls kein fmt vorhanden oder es "apple-appattest" ist, setzen wir auf "none"
-  if (!attObj.fmt || attObj.fmt === "" || attObj.fmt === "apple-appattest") {
-    // Für den "none"-Flow entfernen wir das attStmt-Objekt, falls vorhanden
-    attObj.fmt = "none";
-    if (attObj.attStmt) {
-      delete attObj.attStmt;
-    }
-    console.log("Adjusted fmt auf 'none'");
+  // Wenn fmt "apple-appattest" ist, anpassen:
+  if (decoded.fmt === "apple-appattest") {
+    decoded.fmt = "none";
+    // Stelle sicher, dass attStmt vorhanden ist – hier ein leeres Objekt
+    decoded.attStmt = {};
   }
 
-  return attObj;
+  // Encodiere das angepasste Objekt wieder in CBOR
+  const adjustedBuffer = cbor.encode(decoded);
+  // Gib einen ArrayBuffer zurück
+  return Uint8Array.from(adjustedBuffer).buffer;
 }
