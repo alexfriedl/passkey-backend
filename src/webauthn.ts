@@ -108,11 +108,12 @@ export async function verifyRegistration(credential: any, username: string) {
     credential.response.attestationObject
   );
   let attestationObj = await cbor.decodeFirst(attestationBuffer);
-  // Überschreibe das Format auf "none", damit fido2-lib es akzeptiert
   attestationObj.fmt = "none";
   // Encodiere das modifizierte Objekt zurück in CBOR
   const newAttestationBuffer = cbor.encode(attestationObj);
-  credential.response.attestationObject = newAttestationBuffer;
+  // Stelle sicher, dass du einen Base64-String übergibst, da fido2-lib dies erwartet
+  credential.response.attestationObject =
+    newAttestationBuffer.toString("base64");
   // ---------------------------------------------------
 
   try {
