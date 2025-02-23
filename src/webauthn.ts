@@ -6,7 +6,6 @@ import {
 } from "./challenge-store";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
-import cbor from "cbor";
 import { adjustAttestationObject } from "./attestation";
 
 const rpId = "www.appsprint.de";
@@ -14,9 +13,9 @@ const fido2 = new Fido2Lib({
   rpId,
   rpName: "LocalKeyApp",
   challengeSize: 32,
-  attestation: "none", // Wir verwenden "none" (d.h. keine vollwertige Attestationsprüfung)
+  attestation: "none", // Wir verwenden den "none"-Flow
   cryptoParams: [-7], // ECDSA P-256
-  authenticatorAttachment: "platform",
+  authenticatorAttachment: "platform", // Nur interner Authenticator
   timeout: 60000,
 });
 
@@ -64,88 +63,142 @@ export async function generateRegistrationOptions(
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren
  */
 export async function verifyRegistration(credential: any, username: string) {
+  // Lade die gespeicherte Challenge
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-  console.log("🔄 Geladene Challenge:", challengeBase64);
+  console.log("[verifyRegistration] Geladene Challenge:", challengeBase64);
   console.log(
-    "📥 Credential für Verifizierung:",
+    "[verifyRegistration] Credential (raw):",
     JSON.stringify(credential, null, 2)
   );
 
+  // Lösche die Challenge aus dem Speicher, um Replay zu verhindern
   deleteChallenge(username);
 
-  // Konvertiere id und rawId in ArrayBuffer (falls nötig)
-  credential.rawId = base64UrlToArrayBuffer(credential.rawId);
-  credential.id = base64UrlToArrayBuffer(credential.id);
-
-  // Passe das attestationObject an (für den "none"-Flow)
-  if (credential.response && credential.response.attestationObject) {
-    // Konvertiere den Base64-String in einen Buffer
-    const originalBuffer = Buffer.from(
-      credential.response.attestationObject,
-      "base64"
+  // Konvertiere id und rawId in ArrayBuffer (sofern nicht bereits erfolgt)
+  try {
+    credential.rawId = base64UrlToArrayBuffer(credential.rawId);
+    credential.id = base64UrlToArrayBuffer(credential.id);
+    console.log(
+      "[verifyRegistration] rawId und id als ArrayBuffer:",
+      credential.rawId
     );
-    // Dekodiere das CBOR-Objekt
-    const attestationObj = cbor.decodeAllSync(originalBuffer)[0];
-    console.log("Original attestation object:", attestationObj);
-    // Falls das Format "apple-appattest" ist, setze es auf "none" und entferne attStmt
-    if (attestationObj.fmt === "apple-appattest") {
-      attestationObj.fmt = "none";
-      delete attestationObj.attStmt;
+  } catch (err) {
+    console.error(
+      "[verifyRegistration] Fehler beim Konvertieren von id/rawId:",
+      err
+    );
+    throw err;
+  }
+
+  // Attestation-Objekt anpassen (für den "none"-Flow)
+  if (credential.response && credential.response.attestationObject) {
+    try {
+      console.log(
+        "[verifyRegistration] Ursprüngliches attestationObject (Base64):",
+        credential.response.attestationObject
+      );
+      // Hier gehen wir davon aus, dass es ein Base64-String ist
+      const originalBuffer = Buffer.from(
+        credential.response.attestationObject,
+        "base64"
+      );
+      console.log(
+        "[verifyRegistration] Original attestationObject als Buffer:",
+        originalBuffer
+      );
+      const adjustedBuffer = adjustAttestationObject(originalBuffer);
+      credential.response.attestationObject = adjustedBuffer;
+      console.log(
+        "[verifyRegistration] Angepasstes attestationObject gesetzt."
+      );
+    } catch (err) {
+      console.error(
+        "[verifyRegistration] Fehler beim Anpassen des attestationObject:",
+        err
+      );
+      throw err;
     }
-    // Encodiere das Objekt wieder per CBOR
-    const newAttestationBuffer = cbor.encode(attestationObj);
-    // Konvertiere in einen ArrayBuffer (nicht den Node-Buffer verwenden)
-    credential.response.attestationObject = newAttestationBuffer.buffer.slice(
-      newAttestationBuffer.byteOffset,
-      newAttestationBuffer.byteOffset + newAttestationBuffer.byteLength
+  } else {
+    console.warn(
+      "[verifyRegistration] Kein attestationObject in credential.response gefunden."
     );
   }
 
-  // Stelle sicher, dass clientDataJSON als ArrayBuffer vorliegt
+  // clientDataJSON anpassen – sicherstellen, dass es als UTF-8-Buffer vorliegt
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
-    if (typeof credential.response.clientDataJSON === "string") {
-      // Dekodiere den Base64-String in einen UTF-8-String
-      clientDataStr = Buffer.from(
-        credential.response.clientDataJSON,
-        "base64"
-      ).toString("utf8");
-    } else {
-      clientDataStr = Buffer.from(credential.response.clientDataJSON).toString(
+    try {
+      if (typeof credential.response.clientDataJSON === "string") {
+        // Als Base64-String dekodieren
+        clientDataStr = Buffer.from(
+          credential.response.clientDataJSON,
+          "base64"
+        ).toString("utf8");
+      } else {
+        // Falls es bereits ein ArrayBuffer ist, in einen UTF-8-String konvertieren
+        clientDataStr = Buffer.from(
+          credential.response.clientDataJSON
+        ).toString("utf8");
+      }
+      console.log(
+        "[verifyRegistration] clientDataJSON (UTF-8):",
+        clientDataStr
+      );
+    } catch (err) {
+      console.error(
+        "[verifyRegistration] Fehler beim Dekodieren von clientDataJSON:",
+        err
+      );
+      throw err;
+    }
+    try {
+      const clientData = JSON.parse(clientDataStr);
+      console.log("[verifyRegistration] Geparstes clientData:", clientData);
+      // Hier könnten weitere Anpassungen vorgenommen werden, z.B. Challenge-Konvertierung,
+      // falls erforderlich. Im folgenden Beispiel belassen wir den Wert unverändert.
+      const newClientDataStr = JSON.stringify(clientData);
+      credential.response.clientDataJSON = Buffer.from(
+        newClientDataStr,
         "utf8"
       );
+      console.log("[verifyRegistration] clientDataJSON neu gesetzt.");
+    } catch (err) {
+      console.error(
+        "[verifyRegistration] Fehler beim Parsen von clientDataJSON:",
+        err
+      );
+      throw err;
     }
-    // Parse das JSON
-    const clientData = JSON.parse(clientDataStr);
-    // Überschreibe den Challenge-Wert mit dem gespeicherten Wert (Base64url)
-    clientData.challenge = challengeBase64;
-    // Serialisiere das Objekt
-    const newClientDataStr = JSON.stringify(clientData);
-    // Erzeuge einen UTF-8-Buffer und konvertiere diesen in einen ArrayBuffer
-    const newClientDataBuffer = Buffer.from(newClientDataStr, "utf8");
-    credential.response.clientDataJSON = newClientDataBuffer.buffer.slice(
-      newClientDataBuffer.byteOffset,
-      newClientDataBuffer.byteOffset + newClientDataBuffer.byteLength
+  } else {
+    console.warn(
+      "[verifyRegistration] Kein clientDataJSON in credential.response gefunden."
     );
   }
 
+  // Versuch, das attestationResult zu verifizieren
   try {
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
       factor: "either",
     });
-    console.log("🔐 Attestation-Resultat:", attestationResult);
     console.log(
-      "🔐 Attestation-Objekt (raw):",
+      "[verifyRegistration] Attestation-Resultat:",
+      attestationResult
+    );
+    console.log(
+      "[verifyRegistration] Authenticator-Daten (raw):",
       JSON.stringify(attestationResult.authnrData, null, 2)
     );
     return attestationResult;
   } catch (error) {
-    console.error("❌ Fehler bei fido2.attestationResult():", error);
+    console.error(
+      "[verifyRegistration] Fehler bei fido2.attestationResult():",
+      error
+    );
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
 }
