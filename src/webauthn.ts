@@ -6,6 +6,7 @@ import {
 } from "./challenge-store";
 import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
 import { randomBytes } from "crypto";
+import cbor from "cbor";
 import { adjustAttestationObject } from "./attestation";
 
 const rpId = "www.appsprint.de";
@@ -85,66 +86,47 @@ export async function generateRegistrationOptions(
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren
  */
+
 export async function verifyRegistration(credential: any, username: string) {
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  console.log(
-    "📥 Credential für Verifizierung:",
-    JSON.stringify(credential, null, 2)
-  );
-
+  console.log("📥 Credential für Verifizierung:", JSON.stringify(credential, null, 2));
   deleteChallenge(username);
 
   // Konvertiere id und rawId in ArrayBuffer, falls nötig
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // Passe das attestationObject an (für den "none"-Flow)
+  // Passe das attestationObject an: dekodiere per CBOR, setze fmt auf "none" und entferne attStmt
   if (credential.response && credential.response.attestationObject) {
-    // Hier nehmen wir an, dass das attestationObject als base64-String vorliegt
-    const originalBuffer = Buffer.from(
-      credential.response.attestationObject,
-      "base64"
-    );
-    // adjustAttestationObject soll einen CBOR-codierten Buffer oder ArrayBuffer zurückliefern
-    credential.response.attestationObject =
-      adjustAttestationObject(originalBuffer);
+    // Nehme an, dass das attestationObject als Base64-String vorliegt
+    const originalBuffer = Buffer.from(credential.response.attestationObject, "base64");
+    const attestationObj = cbor.decodeAllSync(originalBuffer)[0];
+    console.log("Original attestation object:", attestationObj);
+    // Setze das fmt-Feld auf "none" und entferne den attStmt
+    attestationObj.fmt = "none";
+    delete attestationObj.attStmt;
+    // Encodiere das Objekt neu
+    const newAttestationBuffer = cbor.encode(attestationObj);
+    credential.response.attestationObject = newAttestationBuffer;
   }
 
-  // Konvertiere clientDataJSON in einen gültigen Base64url‑String
+  // Stelle sicher, dass clientDataJSON als Buffer vorliegt (UTF-8-kodierter JSON-String)
   if (credential.response && credential.response.clientDataJSON) {
     let clientDataStr: string;
     if (typeof credential.response.clientDataJSON === "string") {
-      // Zuerst von Base64 (Standard) in UTF-8-String dekodieren
-      clientDataStr = Buffer.from(
-        credential.response.clientDataJSON,
-        "base64"
-      ).toString("utf8");
+      // Dekodiere aus Base64 (Standard) in UTF-8-String
+      clientDataStr = Buffer.from(credential.response.clientDataJSON, "base64").toString("utf8");
     } else {
-      clientDataStr = Buffer.from(credential.response.clientDataJSON).toString(
-        "utf8"
-      );
+      clientDataStr = Buffer.from(credential.response.clientDataJSON).toString("utf8");
     }
+    // Wir parsen und serialisieren zwar, ändern aber hier nichts am Inhalt – 
+    // fido2‑lib erwartet den JSON-String als Buffer.
     const clientData = JSON.parse(clientDataStr);
-
-    // Hier konvertieren wir den Challenge-Wert:
-    // Er nimmt an, dass der Challenge-Wert aktuell in Standard-Base64 kodiert ist.
-    // Wir dekodieren ihn und kodieren ihn dann als Base64url.
-    if (clientData.challenge) {
-      const challengeBytes = Buffer.from(clientData.challenge, "base64");
-      clientData.challenge = challengeBytes.toString("base64url");
-    }
-
-    // Serialisiere das Objekt wieder und kodieren als Base64url-String
-    const newClientDataStr = JSON.stringify(clientData);
-    credential.response.clientDataJSON = Buffer.from(
-      newClientDataStr,
-      "utf8"
-    ).toString("base64url");
+    credential.response.clientDataJSON = Buffer.from(JSON.stringify(clientData), "utf8");
   }
 
   try {
@@ -153,16 +135,8 @@ export async function verifyRegistration(credential: any, username: string) {
       origin: `https://${rpId}`,
       factor: "either",
     });
-
     console.log("🔐 Attestation-Resultat:", attestationResult);
-    console.log(
-      "🔐 Attestation-Objekt (raw):",
-      JSON.stringify(attestationResult.authnrData, null, 2)
-    );
-
-    // Optional: weitere Validierungen, falls notwendig
-    // validateAttestation(attestationResult.authnrData);
-
+    console.log("🔐 Attestation-Objekt (raw):", JSON.stringify(attestationResult.authnrData, null, 2));
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
