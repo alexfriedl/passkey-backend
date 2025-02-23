@@ -108,17 +108,20 @@ export async function verifyRegistration(credential: any, username: string) {
       ? attestationObj.authData
       : Buffer.from(attestationObj.authData);
 
-    // Setze rpIdHash
+    // Setze rpIdHash (erste 32 Bytes) auf den erwarteten Hash
     const expectedRpIdHash = createHash("sha256")
       .update("www.appsprint.de")
       .digest();
     expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
 
-    // Setze Flags-Byte direkt auf 0x01 (UP)
+    // Setze Flags-Byte (Index 32) direkt auf 0x01 (User Presence)
     authDataBuffer[32] = 0x01;
 
-    // Umwandeln in ArrayBuffer, da fido2-lib das so erwartet:
-    attestationObj.authData = Uint8Array.from(authDataBuffer).buffer;
+    // Stelle sicher, dass authData ein korrekt geschnittenes ArrayBuffer ist:
+    attestationObj.authData = authDataBuffer.buffer.slice(
+      authDataBuffer.byteOffset,
+      authDataBuffer.byteOffset + authDataBuffer.byteLength
+    );
 
     const newAttestationBuffer = cbor.encode(attestationObj);
     credential.response.attestationObject =
