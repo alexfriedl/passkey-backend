@@ -59,82 +59,50 @@ app.post("/api/register", async (req: any, res: any) => {
  */
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
+    console.log("[REGISTER/VERIFY] Request received:", req.body);
+
     const { username, credential } = req.body;
     if (!username || !credential) {
+      console.error(
+        "[REGISTER/VERIFY] Fehler: Username oder Credential fehlen"
+      );
       return res
         .status(400)
         .json({ error: "Username und Credential sind erforderlich" });
     }
+    console.log(
+      `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
+    );
+    console.log(
+      "[REGISTER/VERIFY] Credential:",
+      JSON.stringify(credential, null, 2)
+    );
 
+    // Führe die Verifikation durch
     const result = await verifyRegistration(credential, username);
+    console.log(
+      "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
+      result
+    );
 
-    // Debug und Konvertierung:
-    const flatResult = convertAttestationResult(result);
+    // Extrahiere nur die relevanten Felder und logge sie
+    const simpleResult = {
+      attestationObject: result.request.response.attestationObject,
+      clientDataJSON: result.request.response.clientDataJSON,
+    };
+    console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
 
-    res.json({ success: true, result: flatResult });
+    res.json({ success: true, ...simpleResult });
   } catch (error) {
-    console.error("Fehler beim Verifizieren der Registrierung:", error);
+    console.error(
+      "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
+      error
+    );
     res
       .status(500)
       .json({ error: "Fehler beim Verifizieren der Registrierung" });
   }
 });
-// Hilfsfunktion: Wandelt eine Map rekursiv in ein normales Objekt um.
-function mapToObj(map: any[] | Map<any, any>) {
-  if (!(map instanceof Map)) {
-    return map; // falls es schon kein Map ist
-  }
-  const obj: { [key: string]: any } = {};
-  for (const [key, value] of map.entries()) {
-    obj[key] = value instanceof Map ? mapToObj(value) : value;
-  }
-  return obj;
-}
-
-// Debug-Funktion, die das Attestation-Ergebnis konvertiert und alle Zwischenschritte loggt.
-function convertAttestationResult(result: Fido2AttestationResult) {
-  console.log("=== Raw Fido2AttestationResult ===");
-  console.dir(result, { depth: null });
-
-  // Konvertiere einzelne Bestandteile:
-  const authnrDataObj = mapToObj(result.authnrData);
-  console.log("Converted authnrData:", authnrDataObj);
-
-  const clientDataObj = mapToObj(result.clientData);
-  console.log("Converted clientData:", clientDataObj);
-
-  const expectationsObj = mapToObj(result.expectations);
-  console.log("Converted expectations:", expectationsObj);
-
-  const auditObj = {
-    validExpectations: result.audit.validExpectations,
-    validRequest: result.audit.validRequest,
-    complete: result.audit.complete,
-    journal: Array.from(result.audit.journal),
-    warning: mapToObj(result.audit.warning),
-    info: mapToObj(result.audit.info),
-  };
-  console.log("Converted audit:", auditObj);
-
-  // Erstelle ein flaches Objekt, das nur primitive Datentypen enthält.
-  const flatResult = {
-    authnrData: authnrDataObj,
-    clientData: clientDataObj,
-    expectations: expectationsObj,
-    request: {
-      // Wir extrahieren nur die benötigten Felder aus der Request
-      response: {
-        attestationObject: result.request.response.attestationObject,
-        clientDataJSON: result.request.response.clientDataJSON,
-      },
-    },
-    audit: auditObj,
-  };
-
-  console.log("=== Flach konvertiertes Attestation-Ergebnis ===");
-  console.dir(flatResult, { depth: null });
-  return flatResult;
-}
 
 /**
  * 🔹 Schritt 3: Login - Challenge generieren
