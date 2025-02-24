@@ -164,10 +164,10 @@ export async function verifyRegistration(credential: any, username: string) {
     return buffer.toString("hex");
   }
 
-  console.log(
-    "📥 Credential Attestation Object (Base64):",
-    base64UrlToBase64(credential.response.attestationObject)
-  );
+  // console.log(
+  //   "📥 Credential Attestation Object (Base64):",
+  //   base64UrlToBase64(credential.response.attestationObject)
+  // );
 
   console.log(
     "📥 Credential Attestation Object (Hex):",
