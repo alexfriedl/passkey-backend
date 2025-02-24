@@ -7,6 +7,7 @@ import {
   verifyAuthentication,
 } from "./webauthn";
 import path from "path";
+import { Fido2AttestationResult } from "fido2-lib";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -66,7 +67,11 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     }
 
     const result = await verifyRegistration(credential, username);
-    res.json({ success: true, result });
+
+    // Debug und Konvertierung:
+    const flatResult = convertAttestationResult(result);
+
+    res.json({ success: true, result: flatResult });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Registrierung:", error);
     res
@@ -74,6 +79,62 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       .json({ error: "Fehler beim Verifizieren der Registrierung" });
   }
 });
+// Hilfsfunktion: Wandelt eine Map rekursiv in ein normales Objekt um.
+function mapToObj(map: any[] | Map<any, any>) {
+  if (!(map instanceof Map)) {
+    return map; // falls es schon kein Map ist
+  }
+  const obj: { [key: string]: any } = {};
+  for (const [key, value] of map.entries()) {
+    obj[key] = value instanceof Map ? mapToObj(value) : value;
+  }
+  return obj;
+}
+
+// Debug-Funktion, die das Attestation-Ergebnis konvertiert und alle Zwischenschritte loggt.
+function convertAttestationResult(result: Fido2AttestationResult) {
+  console.log("=== Raw Fido2AttestationResult ===");
+  console.dir(result, { depth: null });
+
+  // Konvertiere einzelne Bestandteile:
+  const authnrDataObj = mapToObj(result.authnrData);
+  console.log("Converted authnrData:", authnrDataObj);
+
+  const clientDataObj = mapToObj(result.clientData);
+  console.log("Converted clientData:", clientDataObj);
+
+  const expectationsObj = mapToObj(result.expectations);
+  console.log("Converted expectations:", expectationsObj);
+
+  const auditObj = {
+    validExpectations: result.audit.validExpectations,
+    validRequest: result.audit.validRequest,
+    complete: result.audit.complete,
+    journal: Array.from(result.audit.journal),
+    warning: mapToObj(result.audit.warning),
+    info: mapToObj(result.audit.info),
+  };
+  console.log("Converted audit:", auditObj);
+
+  // Erstelle ein flaches Objekt, das nur primitive Datentypen enthält.
+  const flatResult = {
+    authnrData: authnrDataObj,
+    clientData: clientDataObj,
+    expectations: expectationsObj,
+    request: {
+      // Wir extrahieren nur die benötigten Felder aus der Request
+      response: {
+        attestationObject: result.request.response.attestationObject,
+        clientDataJSON: result.request.response.clientDataJSON,
+      },
+    },
+    audit: auditObj,
+  };
+
+  console.log("=== Flach konvertiertes Attestation-Ergebnis ===");
+  console.dir(flatResult, { depth: null });
+  return flatResult;
+}
 
 /**
  * 🔹 Schritt 3: Login - Challenge generieren

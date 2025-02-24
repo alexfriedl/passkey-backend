@@ -1,4 +1,4 @@
-import { Fido2Lib } from "fido2-lib";
+import { Fido2AttestationResult, Fido2Lib } from "fido2-lib";
 import {
   storeChallenge,
   getChallenge,
@@ -70,7 +70,6 @@ async function patchAttestationObject(attestationObjectBase64Url: string) {
   attObj.attStmt = {};
   console.log("Patched attestation object:", JSON.stringify(attObj, null, 2));
 
-
   // (Optionally, you may want to adjust the authenticator data if needed.)
   // For instance, if your backend does extra checks on flags or AAGUID,
   // make sure the authData is in the expected form.
@@ -117,7 +116,10 @@ function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren
  */
-export async function verifyRegistration(credential: any, username: string) {
+export async function verifyRegistration(
+  credential: any,
+  username: string
+): Promise<Fido2AttestationResult> {
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
@@ -227,7 +229,10 @@ export async function verifyRegistration(credential: any, username: string) {
     const patchedAttestationObject = await patchAttestationObject(
       credential.response.attestationObject
     );
-    console.log("Patched attestation object (Base64URL):", patchedAttestationObject);
+    console.log(
+      "Patched attestation object (Base64URL):",
+      patchedAttestationObject
+    );
     credential.response.attestationObject = patchedAttestationObject;
 
     const attestationResult = await fido2.attestationResult(credential, {
@@ -241,7 +246,6 @@ export async function verifyRegistration(credential: any, username: string) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
     throw new Error("Fehler beim Verifizieren der Registrierung.");
   }
-  
 }
 
 /**
