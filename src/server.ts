@@ -56,6 +56,7 @@ app.post("/api/register", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", credential: {...} }
  * Server überprüft den Passkey und speichert ihn
  */
+// In deiner Express-Route, z.B. für "/api/register/verify"
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
     const { username, credential } = req.body;
@@ -66,7 +67,9 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     }
 
     const result = await verifyRegistration(credential, username);
-    res.json({ success: true, result });
+    // Hier wird das komplexe Ergebnis in ein reines DTO gepatcht.
+    const patchedResult = patchAttestationResult(result);
+    res.json({ success: true, result: patchedResult });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Registrierung:", error);
     res
@@ -74,6 +77,17 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       .json({ error: "Fehler beim Verifizieren der Registrierung" });
   }
 });
+
+function patchAttestationResult(result: any): any {
+  const patched: any = {};
+  // Nur Eigenschaften übernehmen, die keine Funktion sind
+  Object.keys(result).forEach((key) => {
+    if (typeof result[key] !== "function") {
+      patched[key] = result[key];
+    }
+  });
+  return patched;
+}
 
 /**
  * 🔹 Schritt 3: Login - Challenge generieren
