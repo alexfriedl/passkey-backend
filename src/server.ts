@@ -85,13 +85,18 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       result
     );
 
-    // Extrahiere nur die relevanten Felder und logge sie
+    // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
     const simpleResult = {
       attestationObject: result.request.response.attestationObject,
       clientDataJSON: result.request.response.clientDataJSON,
     };
+
     console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
 
+    // Antworte mit dem Ergebnis
+    // iOS-App wird die Daten speichern und für zukünftige Authentifizierungen verwenden
+    // Die an ios zurückgegebenen Daten sind in verifyRegistration gepatcht worden
+    // und enthalten die AttestationObject und clientDataJSON mit den Werten fmt: "none" und attStmt: {}
     res.json({ success: true, ...simpleResult });
   } catch (error) {
     console.error(
