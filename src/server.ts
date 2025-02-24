@@ -56,7 +56,6 @@ app.post("/api/register", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", credential: {...} }
  * Server überprüft den Passkey und speichert ihn
  */
-// In deiner Express-Route, z.B. für "/api/register/verify"
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
     const { username, credential } = req.body;
@@ -66,10 +65,19 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         .json({ error: "Username und Credential sind erforderlich" });
     }
 
-    const result = await verifyRegistration(credential, username);
-    // Hier wird das komplexe Ergebnis in ein reines DTO gepatcht.
-    const patchedResult = patchAttestationResult(result);
-    res.json({ success: true, result: patchedResult });
+    // Hier rufst du deine bestehende Verify-Funktion auf.
+    // Das Ergebnis enthält neben den reinen Daten auch Helper-Funktionen, die nicht serialisierbar sind.
+    const attestationResult = await verifyRegistration(credential, username);
+
+    // Patch das Ergebnis, um nur die reinen Daten zu behalten.
+    const patchedResult = patchAttestationResult(attestationResult);
+
+    // Hinweis: Dieser Patch ist ein Workaround, da das native Apple App Attest-Objekt nicht zu FIDO2 passt.
+    res.json({
+      success: true,
+      result: patchedResult,
+      note: "Die Antwort wurde gepatcht, da das native Apple-Attestationsobjekt nicht vollständig FIDO2-konform ist.",
+    });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Registrierung:", error);
     res
@@ -80,10 +88,17 @@ app.post("/api/register/verify", async (req: any, res: any) => {
 
 function patchAttestationResult(result: any): any {
   const patched: any = {};
-  // Nur Eigenschaften übernehmen, die keine Funktion sind
   Object.keys(result).forEach((key) => {
-    if (typeof result[key] !== "function") {
-      patched[key] = result[key];
+    const value = result[key];
+    // Falls der Wert ein Objekt ist, kann man hier auch rekursiv patchen – je nach Bedarf
+    if (typeof value === "function") {
+      // Funktion überspringen
+      return;
+    } else if (value && typeof value === "object" && !Array.isArray(value)) {
+      // Rekursiv patchen, falls es sich um ein Objekt handelt
+      patched[key] = patchAttestationResult(value);
+    } else {
+      patched[key] = value;
     }
   });
   return patched;
