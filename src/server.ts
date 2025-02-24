@@ -65,19 +65,8 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         .json({ error: "Username und Credential sind erforderlich" });
     }
 
-    // Hier rufst du deine bestehende Verify-Funktion auf.
-    // Das Ergebnis enthält neben den reinen Daten auch Helper-Funktionen, die nicht serialisierbar sind.
-    const attestationResult = await verifyRegistration(credential, username);
-
-    // Patch das Ergebnis, um nur die reinen Daten zu behalten.
-    const patchedResult = patchAttestationResult(attestationResult);
-
-    // Hinweis: Dieser Patch ist ein Workaround, da das native Apple App Attest-Objekt nicht zu FIDO2 passt.
-    res.json({
-      success: true,
-      result: patchedResult,
-      note: "Die Antwort wurde gepatcht, da das native Apple-Attestationsobjekt nicht vollständig FIDO2-konform ist.",
-    });
+    const result = await verifyRegistration(credential, username);
+    res.json({ success: true, result });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Registrierung:", error);
     res
@@ -85,24 +74,6 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       .json({ error: "Fehler beim Verifizieren der Registrierung" });
   }
 });
-
-function patchAttestationResult(result: any): any {
-  const patched: any = {};
-  Object.keys(result).forEach((key) => {
-    const value = result[key];
-    // Falls der Wert ein Objekt ist, kann man hier auch rekursiv patchen – je nach Bedarf
-    if (typeof value === "function") {
-      // Funktion überspringen
-      return;
-    } else if (value && typeof value === "object" && !Array.isArray(value)) {
-      // Rekursiv patchen, falls es sich um ein Objekt handelt
-      patched[key] = patchAttestationResult(value);
-    } else {
-      patched[key] = value;
-    }
-  });
-  return patched;
-}
 
 /**
  * 🔹 Schritt 3: Login - Challenge generieren
