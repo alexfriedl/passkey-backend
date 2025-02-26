@@ -37,7 +37,10 @@ app.use(express.static(path.join(__dirname, "../public")));
  */
 app.post("/api/register", async (req: any, res: any) => {
   try {
-    const { username } = req.body;
+    // Versuche zuerst, den Benutzernamen aus req.body.user zu holen, falls vorhanden,
+    // ansonsten aus req.body.username.
+    const username =
+      (req.body.user && req.body.user.username) || req.body.username;
     if (!username) {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }

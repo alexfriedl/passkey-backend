@@ -14,7 +14,7 @@ const fido2 = new Fido2Lib({
   rpId,
   rpName: "LocalKeyApp",
   challengeSize: 32,
-  attestation: "none", // Da iOS-App/DCAppAttestService ein eigenes Format liefert
+  attestation: "none", // Da iOS-App/DCAppAttestService ein eigenes Format liefert "apple-appattest"
   cryptoParams: [-7], // ECDSA P-256
   authenticatorAttachment: "platform",
   timeout: 60000,
