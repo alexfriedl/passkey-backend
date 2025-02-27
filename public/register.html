@@ -4,14 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Passkey Registrierung</title>
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #debugLog {
+        border: 1px solid #ccc;
+        padding: 0.5em;
+        background: #f7f7f7;
+        white-space: pre-wrap;
+        margin-top: 1em;
+        max-height: 300px;
+        overflow: auto;
+      }
+    </style>
   </head>
   <body>
     <h1>Passkey Registrierung</h1>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
     <pre id="status"></pre>
+    <div id="debugLog"></div>
 
     <script>
+      // Hilfsfunktionen zur Umwandlung
       function arrayBufferToBase64(buffer) {
         let binary = "";
         const bytes = new Uint8Array(buffer);
@@ -33,6 +49,13 @@
         return bytes.buffer;
       }
 
+      // Debugging: Funktion, die Nachrichten sowohl in der Konsole als auch im Markup ausgibt
+      function logDebug(message) {
+        console.log(message);
+        const debugLog = document.getElementById("debugLog");
+        debugLog.textContent += message + "\n";
+      }
+
       async function register() {
         const API_URL = "https://www.appsprint.de/api";
         const username = document.getElementById("username").value;
@@ -42,30 +65,59 @@
         }
         document.getElementById("status").textContent =
           "Registrierung startet…";
+        logDebug(`Registrierung gestartet für: ${username}`);
 
         // Schritt 1: Challenge abrufen
-        const res = await fetch(`${API_URL}/register`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username }),
-        });
-        const options = await res.json();
+        let res;
+        try {
+          logDebug("Hole Challenge vom Server…");
+          res = await fetch(`${API_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Abrufen der Challenge: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Abrufen der Challenge: " + err;
+          return;
+        }
+
+        let options;
+        try {
+          options = await res.json();
+          logDebug("Empfangene Optionen: " + JSON.stringify(options, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Optionen: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Optionen: " + err;
+          return;
+        }
 
         // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
         if (typeof options.challenge === "string") {
+          logDebug("Wandle challenge von Base64 zu ArrayBuffer um.");
           options.challenge = base64ToArrayBuffer(options.challenge);
         }
         if (typeof options.user.id === "string") {
+          logDebug("Wandle user.id von Base64 zu ArrayBuffer um.");
           options.user.id = base64ToArrayBuffer(options.user.id);
         }
 
-        // Schritt 2: Passkey-Erstellung
+        // Schritt 2: Passkey-Erstellung via WebAuthn
         let credential;
         try {
+          logDebug(
+            "Starte WebAuthn-Registrierung über navigator.credentials.create..."
+          );
           credential = await navigator.credentials.create({
             publicKey: options,
           });
+          logDebug(
+            "Credential erfolgreich erstellt: " + JSON.stringify(credential)
+          );
         } catch (err) {
+          logDebug("Fehler bei credential.create: " + err);
           document.getElementById("status").textContent =
             "Fehler bei credential.create: " + err;
           return;
@@ -85,29 +137,61 @@
           type: credential.type,
         };
 
-        // Schritt 3: Registrierungsabschluss beim Server
-        const verifyRes = await fetch(`${API_URL}/register/verify`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username, credential: credentialData }),
-        });
-        const verifyResult = await verifyRes.json();
+        logDebug(
+          "Credential-Daten formatiert: " +
+            JSON.stringify(credentialData, null, 2)
+        );
 
-        // Nach erfolgreicher Registrierung, Deeplink zurück zur App
+        // Schritt 3: Registrierungsabschluss beim Server
+        let verifyRes;
+        try {
+          logDebug("Sende Credential-Daten an den Server für den Abschluss...");
+          verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, credential: credentialData }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Senden der Daten: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Senden der Daten: " + err;
+          return;
+        }
+
+        let verifyResult;
+        try {
+          verifyResult = await verifyRes.json();
+          logDebug("Serverantwort: " + JSON.stringify(verifyResult, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Serverantwort: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Serverantwort: " + err;
+          return;
+        }
+
+        // Nach erfolgreicher Registrierung: Deeplink zurück zur App
         if (verifyResult.success) {
           document.getElementById("status").textContent =
             "Registrierung erfolgreich!";
-          // Hier wird der Deeplink erzeugt (z. B. localkey://registration-success?token=...&username=...)
-          // Angenommen, der Server liefert einen Token in verifyResult.token:
+          logDebug(
+            "Registrierung erfolgreich – starte Deeplink zurück zur App."
+          );
+          // Beispiel: Erzeuge Deeplink (anpassen, falls der Server einen Token liefert)
           const token = verifyResult.token || "dummyToken";
           const deeplink = `localkey://registration-success?token=${encodeURIComponent(
             token
           )}&username=${encodeURIComponent(username)}`;
+          logDebug("Deeplink: " + deeplink);
+          // Zurück zur App navigieren
           window.location.href = deeplink;
         } else {
           document.getElementById("status").textContent =
             "Registrierung fehlgeschlagen: " +
             (verifyResult.error || "Unbekannter Fehler");
+          logDebug(
+            "Registrierung fehlgeschlagen: " +
+              (verifyResult.error || "Unbekannter Fehler")
+          );
         }
       }
     </script>
