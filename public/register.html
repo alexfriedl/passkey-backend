@@ -9,18 +9,9 @@
     <h1>Passkey Registrierung</h1>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
-    <pre id="status" style="color: black"></pre>
-    <p id="debug1"></p>
-    <p id="debug2"></p>
-    <p id="debug3"></p>
-    <p id="debug4"></p>
-    <p id="debug41"></p>
-    <p id="debug5"></p>
-    <p id="debug6"></p>
-    <p id="debug7"></p>
+    <pre id="status"></pre>
 
     <script>
-      // ✅ Hilfsfunktion: `ArrayBuffer` in Base64URL umwandeln
       function arrayBufferToBase64(buffer) {
         let binary = "";
         const bytes = new Uint8Array(buffer);
@@ -30,10 +21,9 @@
         return btoa(binary)
           .replace(/\+/g, "-")
           .replace(/\//g, "_")
-          .replace(/=+$/, ""); // Base64URL
+          .replace(/=+$/, "");
       }
 
-      // ✅ Hilfsfunktion: `Base64URL` in `ArrayBuffer` umwandeln
       function base64ToArrayBuffer(base64) {
         const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
         const bytes = new Uint8Array(binary.length);
@@ -44,158 +34,80 @@
       }
 
       async function register() {
-        const API_URL =
-          "https://www.appsprint.de/api";
+        const API_URL = "https://www.appsprint.de/api";
+        const username = document.getElementById("username").value;
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+        document.getElementById("status").textContent =
+          "Registrierung startet…";
 
-        const flattenObject = (obj) => {
-          const flattened = {};
+        // Schritt 1: Challenge abrufen
+        const res = await fetch(`${API_URL}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username }),
+        });
+        const options = await res.json();
 
-          Object.keys(obj).forEach((key) => {
-            const value = obj[key];
+        // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
+        if (typeof options.challenge === "string") {
+          options.challenge = base64ToArrayBuffer(options.challenge);
+        }
+        if (typeof options.user.id === "string") {
+          options.user.id = base64ToArrayBuffer(options.user.id);
+        }
 
-            if (
-              typeof value === "object" &&
-              value !== null &&
-              !Array.isArray(value)
-            ) {
-              Object.assign(flattened, flattenObject(value));
-            } else {
-              flattened[key] = value;
-            }
-          });
-
-          return flattened;
-        };
-
+        // Schritt 2: Passkey-Erstellung
+        let credential;
         try {
-          const username = document.getElementById("username").value;
-          if (!username) {
-            alert("Bitte einen Benutzernamen eingeben!");
-            return;
-          }
-
-          console.log("📢 Registrierung gestartet für:", username);
-          document.getElementById(
-            "debug1"
-          ).textContent = `❌ Username (debug1): ${username}`;
-
-          // 🔹 Schritt 1: Registrierungschallenge vom Server holen
-          const res = await fetch(`${API_URL}/register`, {
-            // 👈 Nutzt jetzt `hostname.local`
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username }),
-          });
-
-          document.getElementById(
-            "debug2"
-          ).textContent = `❌ Response (debug2): ${flattenObject(res)}`;
-
-          const options = await res.json();
-
-          document.getElementById(
-            "debug3"
-          ).textContent = `❌ Options (debug3): ${options}`;
-
-          console.log("📥 Empfangene `options` von Server:", options);
-
-          // ✅ Fix für `user.id`
-          if (typeof options.user.id === "string") {
-            console.log(
-              "🔄 `user.id` ist Base64. Wird in Uint8Array konvertiert."
-            );
-            options.user.id = base64ToArrayBuffer(options.user.id);
-          }
-
-          // ✅ Fix: Challenge sicherstellen (ArrayBuffer oder Base64-Umwandlung)
-          if (options.challenge) {
-            if (typeof options.challenge === "string") {
-              console.log(
-                "🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert."
-              );
-              options.challenge = base64ToArrayBuffer(options.challenge);
-            } else if (!(options.challenge instanceof ArrayBuffer)) {
-              console.error(
-                "❌ `challenge` hat einen unerwarteten Typ:",
-                options.challenge
-              );
-              throw new Error("Challenge hat falsches Format!");
-            }
-          } else {
-            console.error("❌ `challenge` fehlt in `options`!");
-            throw new Error("Challenge nicht erhalten!");
-          }
-
-          console.log("✅ Umgewandelte `challenge`:", options.challenge);
-
-          document.getElementById(
-            "debug4"
-          ).textContent = `❌ Challenge (debug4): ${options.challenge}`;
-
-          // 🔹 Schritt 2: WebAuthn-Registrierung im Browser starten
-          console.log("🔑 WebAuthn-Registrierung wird gestartet...");
-          const credential = await navigator.credentials.create({
+          credential = await navigator.credentials.create({
             publicKey: options,
           });
+        } catch (err) {
+          document.getElementById("status").textContent =
+            "Fehler bei credential.create: " + err;
+          return;
+        }
 
-          document.getElementById(
-            "debug41"
-          ).textContent = `❌ credential (debug41): $credential}`;
+        const credentialData = {
+          id: credential.id,
+          rawId: arrayBufferToBase64(credential.rawId),
+          response: {
+            attestationObject: arrayBufferToBase64(
+              credential.response.attestationObject
+            ),
+            clientDataJSON: arrayBufferToBase64(
+              credential.response.clientDataJSON
+            ),
+          },
+          type: credential.type,
+        };
 
-          console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
+        // Schritt 3: Registrierungsabschluss beim Server
+        const verifyRes = await fetch(`${API_URL}/register/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, credential: credentialData }),
+        });
+        const verifyResult = await verifyRes.json();
 
-          // ✅ Fix: Korrekte Base64-Umwandlung für `credential`
-          const credentialData = {
-            id: credential.id,
-            rawId: arrayBufferToBase64(credential.rawId),
-            response: {
-              attestationObject: arrayBufferToBase64(
-                credential.response.attestationObject
-              ),
-              clientDataJSON: arrayBufferToBase64(
-                credential.response.clientDataJSON
-              ),
-            },
-            type: credential.type,
-          };
-
-          console.log(
-            "📤 Sende Credential-Daten an den Server:",
-            credentialData
-          );
-
-          document.getElementById(
-            "debug5"
-          ).textContent = `❌ CredentialData (debug5): ${credentialData}`;
-
-          // 🔹 Schritt 3: Registrierung beim Server abschließen
-
-          const verifyRes = await fetch(`${API_URL}/register/verify`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, credential: credentialData }),
-          });
-
-          document.getElementById(
-            "debug6"
-          ).textContent = `❌ verifyRes (debug6): ${verifyRes}`;
-
-          const verifyResult = await verifyRes.json();
-
-          console.log("✅ Server-Antwort auf `register/verify`:", verifyResult);
-
-          document.getElementById(
-            "debug7"
-          ).textContent = `❌ verifyResult (debug7): ${verifyResult}`;
-
-          document.getElementById("status").textContent = verifyResult.success
-            ? "🎉 Registrierung erfolgreich!"
-            : "⚠️ Fehler bei der Registrierung.";
-        } catch (error) {
-          console.error("❌ Fehler bei der Registrierung:", error);
-          document.getElementById(
-            "status"
-          ).textContent = `❌ Fehler beim Registrieren. ${error.message}`;
+        // Nach erfolgreicher Registrierung, Deeplink zurück zur App
+        if (verifyResult.success) {
+          document.getElementById("status").textContent =
+            "Registrierung erfolgreich!";
+          // Hier wird der Deeplink erzeugt (z. B. localkey://registration-success?token=...&username=...)
+          // Angenommen, der Server liefert einen Token in verifyResult.token:
+          const token = verifyResult.token || "dummyToken";
+          const deeplink = `localkey://registration-success?token=${encodeURIComponent(
+            token
+          )}&username=${encodeURIComponent(username)}`;
+          window.location.href = deeplink;
+        } else {
+          document.getElementById("status").textContent =
+            "Registrierung fehlgeschlagen: " +
+            (verifyResult.error || "Unbekannter Fehler");
         }
       }
     </script>
