@@ -7,8 +7,34 @@ import {
 import { randomBytes } from "crypto";
 import { createHash } from "crypto";
 import cbor from "cbor";
+import { promises as fs } from "fs";
+import path from "path";
 
-// rpId, rpName etc. gemäß deinen Einstellungen
+// --- User-Speicherung in JSON ---
+interface User {
+  username: string;
+  credentialId: string; // Als Base64URL-kodierter String
+  publicKey: string;
+  counter: number;
+}
+
+const USERS_FILE = path.join(__dirname, "users.json");
+
+async function loadUsers(): Promise<User[]> {
+  try {
+    const data = await fs.readFile(USERS_FILE, "utf8");
+    return JSON.parse(data) as User[];
+  } catch (err) {
+    // Falls die Datei noch nicht existiert, gib ein leeres Array zurück
+    return [];
+  }
+}
+
+async function saveUsers(users: User[]): Promise<void> {
+  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
+}
+
+// --- fido2-lib Konfiguration ---
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
   rpId,
@@ -281,15 +307,29 @@ export async function verifyAuthentication(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   deleteChallenge(username);
-
-  return await fido2.assertionResult(assertion, {
-    challenge: challengeBase64,
-    origin: `https://${rpId}`,
-    factor: "either",
-    publicKey,
-    prevCounter: 0,
-    userHandle: null,
-  });
+  const users = await loadUsers();
+  const user = users.find((u) => u.username === username);
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  try {
+    const assertionResult = await fido2.assertionResult(assertion, {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey,
+      prevCounter: user.counter,
+      userHandle: null,
+    });
+    // Aktualisiere den Counter
+    user.counter = assertionResult.authnrData.get("counter") || user.counter;
+    await saveUsers(users);
+    console.log("✅ Authentifizierung erfolgreich:", assertionResult);
+    return assertionResult;
+  } catch (error) {
+    console.error("❌ Fehler bei fido2.assertionResult():", error);
+    throw new Error("Fehler beim Verifizieren der Authentifizierung.");
+  }
 }
 
 /**
