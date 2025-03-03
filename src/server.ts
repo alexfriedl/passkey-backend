@@ -11,7 +11,7 @@ import { connectDB } from "./mongodb";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const MONGOPORT = process.env.PORT || 3001;
+const MONGOPORT = process.env.MONGOPORT || 27017;
 
 app.use(express.json());
 app.use(
