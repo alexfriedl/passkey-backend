@@ -7,7 +7,6 @@ import {
   verifyAuthentication,
 } from "./webauthn";
 import path from "path";
-import { Fido2AttestationResult } from "fido2-lib";
 
 const app = express();
 const PORT = process.env.PORT || 3000;

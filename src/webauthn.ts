@@ -7,7 +7,7 @@ import {
 import { randomBytes } from "crypto";
 import { createHash } from "crypto";
 import cbor from "cbor";
-import { promises as fs } from "fs";
+import { existsSync, promises as fs, writeFileSync } from "fs";
 import path from "path";
 
 // --- User-Speicherung in JSON ---
@@ -20,18 +20,45 @@ interface User {
 
 const USERS_FILE = path.join(__dirname, "users.json");
 
+// Beim Serverstart: Prüfe, ob die Datei existiert und lege sie ggf. an.
+if (!existsSync(USERS_FILE)) {
+  console.log("users.json existiert nicht, erstelle sie.");
+  writeFileSync(USERS_FILE, "[]", "utf8");
+} else {
+  console.log("users.json gefunden:", USERS_FILE);
+}
+
+// Lädt alle User aus der JSON-Datei.
+// Falls die Datei nicht existiert, wird ein leeres Array zurückgegeben.
 async function loadUsers(): Promise<User[]> {
   try {
+    console.log("Lade User-Datei von:", USERS_FILE);
     const data = await fs.readFile(USERS_FILE, "utf8");
+    console.log("Inhalt von users.json:", data);
     return JSON.parse(data) as User[];
   } catch (err) {
-    // Falls die Datei noch nicht existiert, gib ein leeres Array zurück
+    console.error(
+      "Fehler beim Laden der User-Daten, gebe leeres Array zurück:",
+      err
+    );
     return [];
   }
 }
 
+// Speichert das Array der User in der JSON-Datei.
 async function saveUsers(users: User[]): Promise<void> {
-  await fs.writeFile(USERS_FILE, JSON.stringify(users, null, 2), "utf8");
+  const data = JSON.stringify(users, null, 2);
+  console.log("Schreibe User in Datei:", USERS_FILE);
+  console.log("Daten, die geschrieben werden:", data);
+  try {
+    await fs.writeFile(USERS_FILE, data, "utf8");
+    console.log("User-Daten erfolgreich gespeichert.");
+    // Lies die Datei erneut, um den geschriebenen Inhalt zu überprüfen.
+    const newData = await fs.readFile(USERS_FILE, "utf8");
+    console.log("Neuer Inhalt von users.json:", newData);
+  } catch (err) {
+    console.error("Fehler beim Schreiben oder Überprüfen der users.json:", err);
+  }
 }
 
 // --- fido2-lib Konfiguration ---
@@ -309,7 +336,7 @@ export async function generateAuthenticationOptions(
       type: "public-key",
       id: base64UrlToArrayBuffer(user.credentialId),
       // Cast explizit auf AuthenticatorTransport[] (iOS-Typ)
-      transports: (["internal"] as AuthenticatorTransport[]),
+      transports: ["internal"] as AuthenticatorTransport[],
     },
   ];
   console.log("allowCredentials gesetzt:", options.allowCredentials);
