@@ -11,6 +11,7 @@ import { connectDB } from "./mongodb";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const MONGOPORT = process.env.PORT || 3001;
 
 app.use(express.json());
 app.use(
@@ -22,8 +23,8 @@ app.use(
 );
 
 connectDB().then(() => {
-  app.listen(PORT, () => {
-    console.log(`Server läuft auf http://localhost:${PORT}`);
+  app.listen(MONGOPORT, () => {
+    console.log(`Server läuft auf http://localhost:${MONGOPORT}`);
   });
 });
 
