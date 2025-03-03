@@ -178,10 +178,7 @@ export async function verifyRegistration(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  // console.log(
-  //   "📥 Credential für Verifizierung:",
-  //   JSON.stringify(credential, null, 2)
-  // );
+  // console.log("📥 Credential für Verifizierung:", JSON.stringify(credential, null, 2));
   deleteChallenge(username);
 
   // Konvertiere id und rawId in ArrayBuffer
