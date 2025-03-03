@@ -277,21 +277,51 @@ export async function verifyRegistration(
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren
  */
+/**
+ * Authentifizierung: Optionen für FIDO2-Login generieren.
+ * Diese Funktion ruft fido2.assertionOptions() auf, speichert die Challenge und
+ * ergänzt die Antwort um die Felder "rp" und "user", die der Client erwartet.
+ */
 export async function generateAuthenticationOptions(
   username: string
 ): Promise<PublicKeyCredentialRequestOptions> {
+  console.log("Erstelle Authentifizierungsoptionen für:", username);
   const options = await fido2.assertionOptions();
+  console.log("FIDO2 assertionOptions erhalten:", options);
+
+  // Konvertiere die generierte Challenge in einen Base64URL-String
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("Generierte Challenge (Base64URL):", challengeBase64);
   storeChallenge(username, challengeBase64);
 
-  return {
+  // Lade den User, um allowCredentials zu setzen
+  const users = await loadUsers();
+  const user = users.find((u) => u.username === username);
+  if (user) {
+    console.log("User gefunden für allowCredentials:", user);
+    options.allowCredentials = [
+      {
+        type: "public-key",
+        id: base64UrlToArrayBuffer(user.credentialId),
+        // Cast explizit auf AuthenticatorTransport[], um den iOS-Typen zu entsprechen.
+        transports: ["internal"] as AuthenticatorTransport[],
+      },
+    ];
+    console.log("allowCredentials gesetzt:", options.allowCredentials);
+  } else {
+    console.warn("Kein registrierter User gefunden für:", username);
+  }
+
+  // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
+  const responseOptions = {
     ...options,
-    challenge: options.challenge, // Laut Typdefinition als ArrayBuffer
-    allowCredentials: options.allowCredentials?.map((cred) => ({
-      ...cred,
-      transports: cred.transports as AuthenticatorTransport[] | undefined,
-    })),
+    challenge: challengeBase64, // Überschreibt die originale ArrayBuffer-Challenge
+    rp: { name: "LocalKeyApp" }, // Dummy-Daten; passe diese bei Bedarf an
+    user: { id: username, name: username },
   };
+
+  console.log("Authentifizierungsoptionen:", responseOptions);
+  return responseOptions as any; // Typcasting für Kompatibilität
 }
 
 /**
