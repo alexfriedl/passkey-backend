@@ -61,7 +61,7 @@ app.post("/api/register", async (req: any, res: any) => {
  */
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
-    console.log("[REGISTER/VERIFY] Request received:", req.body);
+    // console.log("[REGISTER/VERIFY] Request received:", req.body);
 
     const { username, credential } = req.body;
     if (!username || !credential) {
@@ -75,10 +75,10 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
-    console.log(
-      "[REGISTER/VERIFY] Credential:",
-      JSON.stringify(credential, null, 2)
-    );
+    // console.log(
+    //   "[REGISTER/VERIFY] Credential:",
+    //   JSON.stringify(credential, null, 2)
+    // );
 
     // Führe die Verifikation durch
     const result = await verifyRegistration(credential, username);

@@ -178,10 +178,10 @@ export async function verifyRegistration(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  console.log(
-    "📥 Credential für Verifizierung:",
-    JSON.stringify(credential, null, 2)
-  );
+  // console.log(
+  //   "📥 Credential für Verifizierung:",
+  //   JSON.stringify(credential, null, 2)
+  // );
   deleteChallenge(username);
 
   // Konvertiere id und rawId in ArrayBuffer
@@ -224,10 +224,10 @@ export async function verifyRegistration(
   //   base64UrlToBase64(credential.response.attestationObject)
   // );
 
-  console.log(
-    "📥 Credential Attestation Object (Hex):",
-    base64ToHex(base64UrlToBase64(credential.response.attestationObject))
-  );
+  // console.log(
+  //   "📥 Credential Attestation Object (Hex):",
+  //   base64ToHex(base64UrlToBase64(credential.response.attestationObject))
+  // );
 
   // STEP 2: Attestation-Objekt anpassen
   {
