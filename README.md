@@ -206,4 +206,3 @@ Analyze iOS Frontend Errors with Safari:
 
 ---
 💡 **Feedback oder Probleme?** Erstelle ein Issue oder PR! 🚀
-
