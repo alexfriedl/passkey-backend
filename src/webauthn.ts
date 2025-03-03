@@ -275,12 +275,10 @@ export async function verifyRegistration(
 }
 
 /**
- * Authentifizierung: Optionen für FIDO2-Login generieren
- */
-/**
  * Authentifizierung: Optionen für FIDO2-Login generieren.
  * Diese Funktion ruft fido2.assertionOptions() auf, speichert die Challenge und
- * ergänzt die Antwort um die Felder "rp" und "user", die der Client erwartet.
+ * setzt allowCredentials, falls der User in der JSON-Datei gefunden wird.
+ * Wenn kein registrierter User gefunden wird, wird ein Fehler geworfen.
  */
 export async function generateAuthenticationOptions(
   username: string
@@ -294,29 +292,33 @@ export async function generateAuthenticationOptions(
   console.log("Generierte Challenge (Base64URL):", challengeBase64);
   storeChallenge(username, challengeBase64);
 
-  // Lade den User, um allowCredentials zu setzen
+  // Lade alle registrierten User und logge den Inhalt der JSON-Datei
   const users = await loadUsers();
+  console.log("Geladene User aus users.json:", users);
+
+  // Suche nach dem registrierten User
   const user = users.find((u) => u.username === username);
-  if (user) {
-    console.log("User gefunden für allowCredentials:", user);
-    options.allowCredentials = [
-      {
-        type: "public-key",
-        id: base64UrlToArrayBuffer(user.credentialId),
-        // Cast explizit auf AuthenticatorTransport[], um den iOS-Typen zu entsprechen.
-        transports: ["internal"] as AuthenticatorTransport[],
-      },
-    ];
-    console.log("allowCredentials gesetzt:", options.allowCredentials);
-  } else {
-    console.warn("Kein registrierter User gefunden für:", username);
+  if (!user) {
+    // Wenn kein registrierter User gefunden wird, werfen wir einen Fehler.
+    console.error("Kein registrierter User gefunden für:", username);
+    throw new Error("Kein registrierter User gefunden.");
   }
+  console.log("User gefunden für allowCredentials:", user);
+  options.allowCredentials = [
+    {
+      type: "public-key",
+      id: base64UrlToArrayBuffer(user.credentialId),
+      // Cast explizit auf AuthenticatorTransport[] (iOS-Typ)
+      transports: (["internal"] as AuthenticatorTransport[]),
+    },
+  ];
+  console.log("allowCredentials gesetzt:", options.allowCredentials);
 
   // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
   const responseOptions = {
     ...options,
     challenge: challengeBase64, // Überschreibt die originale ArrayBuffer-Challenge
-    rp: { name: "LocalKeyApp" }, // Dummy-Daten; passe diese bei Bedarf an
+    rp: { name: "LocalKeyApp" }, // Dummy-Daten, ggf. anpassen
     user: { id: username, name: username },
   };
 
