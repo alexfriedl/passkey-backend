@@ -7,57 +7,66 @@ import {
 import { randomBytes } from "crypto";
 import { createHash } from "crypto";
 import cbor from "cbor";
-import { existsSync, promises as fs, writeFileSync } from "fs";
-import path from "path";
+import User, { IUser } from "./models/User";
 
-// --- User-Speicherung in JSON ---
-interface User {
-  username: string;
-  credentialId: string; // Als Base64URL-kodierter String
-  publicKey: string;
-  counter: number;
-}
+// --- Funktionen zur User-Verwaltung in MongoDB --- //
 
-const USERS_FILE = path.join(__dirname, "users.json");
-
-// Beim Serverstart: Prüfe, ob die Datei existiert und lege sie ggf. an.
-if (!existsSync(USERS_FILE)) {
-  console.log("users.json existiert nicht, erstelle sie.");
-  writeFileSync(USERS_FILE, "[]", "utf8");
-} else {
-  console.log("users.json gefunden:", USERS_FILE);
-}
-
-// Lädt alle User aus der JSON-Datei.
-// Falls die Datei nicht existiert, wird ein leeres Array zurückgegeben.
-async function loadUsers(): Promise<User[]> {
+/**
+ * Lädt alle registrierten User aus der Datenbank.
+ * @returns Promise, das ein Array von Usern zurückgibt.
+ */
+export async function loadUsersFromDB(): Promise<IUser[]> {
   try {
-    console.log("Lade User-Datei von:", USERS_FILE);
-    const data = await fs.readFile(USERS_FILE, "utf8");
-    console.log("Inhalt von users.json:", data);
-    return JSON.parse(data) as User[];
-  } catch (err) {
-    console.error(
-      "Fehler beim Laden der User-Daten, gebe leeres Array zurück:",
-      err
-    );
+    const users = await User.find({});
+    console.log("Geladene User aus der DB:", users);
+    return users;
+  } catch (error) {
+    console.error("Fehler beim Laden der User-Daten aus der DB:", error);
     return [];
   }
 }
 
-// Speichert das Array der User in der JSON-Datei.
-async function saveUsers(users: User[]): Promise<void> {
-  const data = JSON.stringify(users, null, 2);
-  console.log("Schreibe User in Datei:", USERS_FILE);
-  console.log("Daten, die geschrieben werden:", data);
+/**
+ * Speichert einen neuen User in der Datenbank.
+ * @param userData - Die Daten des Users (username, credentialId, publicKey, counter)
+ * @returns Promise, das den gespeicherten User zurückgibt.
+ */
+export async function saveUserToDB(userData: Partial<IUser>): Promise<IUser> {
   try {
-    await fs.writeFile(USERS_FILE, data, "utf8");
-    console.log("User-Daten erfolgreich gespeichert.");
-    // Lies die Datei erneut, um den geschriebenen Inhalt zu überprüfen.
-    const newData = await fs.readFile(USERS_FILE, "utf8");
-    console.log("Neuer Inhalt von users.json:", newData);
-  } catch (err) {
-    console.error("Fehler beim Schreiben oder Überprüfen der users.json:", err);
+    const newUser = new User(userData);
+    const savedUser = await newUser.save();
+    console.log("Neuer User in der DB gespeichert:", savedUser);
+    return savedUser;
+  } catch (error) {
+    console.error("Fehler beim Speichern des Users in der DB:", error);
+    throw error;
+  }
+}
+
+/**
+ * Aktualisiert den Counter eines registrierten Users in der Datenbank.
+ * @param username - Der Benutzername des Users
+ * @param newCounter - Der neue Counterwert
+ * @returns Promise, das den aktualisierten User zurückgibt (oder null, falls nicht gefunden).
+ */
+export async function updateUserCounter(
+  username: string,
+  newCounter: number
+): Promise<IUser | null> {
+  try {
+    const updatedUser = await User.findOneAndUpdate(
+      { username },
+      { counter: newCounter },
+      { new: true }
+    );
+    console.log(`Counter für ${username} aktualisiert:`, updatedUser);
+    return updatedUser;
+  } catch (error) {
+    console.error(
+      `Fehler beim Aktualisieren des Counters für ${username}:`,
+      error
+    );
+    throw error;
   }
 }
 
@@ -109,6 +118,9 @@ export async function generateRegistrationOptions(
   return response;
 }
 
+/**
+ * Hilfsfunktion: Passt das Attestation-Objekt an (setzt fmt auf "none" und leert attStmt).
+ */
 async function patchAttestationObject(attestationObjectBase64Url: string) {
   // Decode the attestation object from base64url
   const attestationBuffer = Buffer.from(
@@ -133,9 +145,8 @@ async function patchAttestationObject(attestationObjectBase64Url: string) {
 }
 
 /**
- * Reassembles authenticator data from a Buffer.
- * If the original authData is only 37 bytes (no attested credential data),
- * this function simulates minimal attested data (dummy AAGUID and zero-length credential ID).
+ * Hilfsfunktion: Reassembles authenticator data aus einem Buffer.
+ * Simuliert attested credential data, falls nicht vorhanden.
  */
 function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
   const fixedPartLength = 37; // rpIdHash (32) + flags (1) + counter (4)
@@ -167,7 +178,8 @@ function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
 }
 
 /**
- * Registrierung: FIDO2-Passkey-Registrierung verifizieren
+ * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
+ * Nach erfolgreicher Verifikation wird der User in der MongoDB gespeichert.
  */
 export async function verifyRegistration(
   credential: any,
@@ -291,6 +303,21 @@ export async function verifyRegistration(
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
+
+    // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
+    const existingUser = await User.findOne({ username });
+    if (!existingUser) {
+      // Nutze die Funktion zum Speichern des Users in der DB
+      await saveUserToDB({
+        username,
+        credentialId: credential.id.toString(), // Als Base64URL‑String
+        publicKey: "dummyPublicKey", // In Produktion aus attestationResult extrahieren
+        counter: 0,
+      });
+      console.log("User erstellt für:", username);
+    } else {
+      console.log("User bereits vorhanden:", existingUser);
+    }
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
@@ -301,8 +328,8 @@ export async function verifyRegistration(
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren.
  * Diese Funktion ruft fido2.assertionOptions() auf, speichert die Challenge und
- * setzt allowCredentials, falls der User in der JSON-Datei gefunden wird.
- * Wenn kein registrierter User gefunden wird, wird ein Fehler geworfen.
+ * setzt allowCredentials, falls der User in der Datenbank gefunden wird.
+ * Wird kein registrierter User gefunden, wird ein Fehler geworfen.
  */
 export async function generateAuthenticationOptions(
   username: string
@@ -316,12 +343,9 @@ export async function generateAuthenticationOptions(
   console.log("Generierte Challenge (Base64URL):", challengeBase64);
   storeChallenge(username, challengeBase64);
 
-  // Lade alle registrierten User und logge den Inhalt der JSON-Datei
-  const users = await loadUsers();
-  console.log("Geladene User aus users.json:", users);
-
-  // Suche nach dem registrierten User
-  const user = users.find((u) => u.username === username);
+  // Suche in der Datenbank nach dem registrierten User
+  const user = await User.findOne({ username });
+  console.log("Geladener User aus der DB:", user);
   if (!user) {
     // Wenn kein registrierter User gefunden wird, werfen wir einen Fehler.
     console.error("Kein registrierter User gefunden für:", username);
@@ -347,7 +371,7 @@ export async function generateAuthenticationOptions(
   };
 
   console.log("Authentifizierungsoptionen:", responseOptions);
-  return responseOptions as any; // Typcasting für Kompatibilität
+  return responseOptions as any;
 }
 
 /**
@@ -363,8 +387,7 @@ export async function verifyAuthentication(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   deleteChallenge(username);
-  const users = await loadUsers();
-  const user = users.find((u) => u.username === username);
+  const user = await User.findOne({ username });
   if (!user) {
     throw new Error("User not found.");
   }
@@ -377,9 +400,11 @@ export async function verifyAuthentication(
       prevCounter: user.counter,
       userHandle: null,
     });
-    // Aktualisiere den Counter
-    user.counter = assertionResult.authnrData.get("counter") || user.counter;
-    await saveUsers(users);
+    // Aktualisiere den Counter in der DB mithilfe der update-Funktion
+    await updateUserCounter(
+      username,
+      assertionResult.authnrData.get("counter") || user.counter
+    );
     console.log("✅ Authentifizierung erfolgreich:", assertionResult);
     return assertionResult;
   } catch (error) {

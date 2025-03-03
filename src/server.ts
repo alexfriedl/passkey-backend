@@ -7,6 +7,7 @@ import {
   verifyAuthentication,
 } from "./webauthn";
 import path from "path";
+import { connectDB } from "./mongodb";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,12 @@ app.use(
     allowedHeaders: ["Content-Type"],
   })
 );
+
+connectDB().then(() => {
+  app.listen(PORT, () => {
+    console.log(`Server läuft auf http://localhost:${PORT}`);
+  });
+});
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
