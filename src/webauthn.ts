@@ -177,42 +177,6 @@ function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
   }
 }
 
-// Hilfsfunktion: Konvertiert einen COSE-encoded Public Key in das PEM-Format.
-function coseToPEM(cosePublicKey: Map<number, Buffer>): string {
-  // Prüfe, ob es sich um einen EC-Schlüssel handelt (kty sollte 2 sein).
-  const kty = cosePublicKey.get(1);
-  if (kty === undefined || kty.readUInt8(0) !== 2) {
-    throw new Error("Unsupported key type");
-  }
-  // Extrahiere x- und y-Koordinaten aus dem COSE-Key
-  const xBuffer = cosePublicKey.get(-2);
-  const yBuffer = cosePublicKey.get(-3);
-  if (!xBuffer || !yBuffer) {
-    throw new Error("Invalid COSE key format: x or y coordinate missing");
-  }
-  // Erstelle einen JWK (für EC-Schlüssel P-256)
-  const jwk = {
-    kty: "EC",
-    crv: "P-256",
-    x: xBuffer
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, ""),
-    y: yBuffer
-      .toString("base64")
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, ""),
-  };
-  // Konvertiere den JWK in PEM
-  const pem = createPublicKey({ key: jwk, format: "jwk" }).export({
-    format: "pem",
-    type: "spki",
-  });
-  return pem.toString();
-}
-
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
  * Nach erfolgreicher Verifikation wird der User in der MongoDB gespeichert.
@@ -343,11 +307,14 @@ export async function verifyRegistration(
     // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
     const existingUser = await User.findOne({ username });
     if (!existingUser) {
-      // Extrahiere den echten Public Key aus dem Attestation-Ergebnis
-      const cosePublicKey = attestationResult.authnrData.get(
-        "credentialPublicKey"
+      // Anstatt die (nicht vorhandene) Eigenschaft "credentialPublicKey" zu verwenden,
+      // extrahieren wir den Public Key direkt aus "credentialPublicKeyPem".
+      const publicKeyPEM = attestationResult.authnrData.get(
+        "credentialPublicKeyPem"
       );
-      const publicKeyPEM = coseToPEM(cosePublicKey);
+      if (!publicKeyPEM) {
+        throw new Error("Public Key konnte nicht extrahiert werden.");
+      }
       await saveUserToDB({
         username,
         credentialId: credential.id.toString(), // Als Base64URL‑String
