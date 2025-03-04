@@ -44,10 +44,12 @@ app.use(express.static(path.join(__dirname, "../public")));
  */
 app.post("/api/register", async (req: any, res: any) => {
   try {
-    // Versuche zuerst, den Benutzernamen aus req.body.user zu holen, falls vorhanden,
-    // ansonsten aus req.body.username.
-    const username =
-      (req.body.user && req.body.user.username) || req.body.username;
+    // Benutzername trimmen, egal ob er in req.body.user.username oder req.body.username übergeben wird
+    const username = (
+      (req.body.user && req.body.user.username) ||
+      req.body.username ||
+      ""
+    ).trim();
     if (!username) {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
@@ -126,11 +128,10 @@ app.post("/api/register/verify", async (req: any, res: any) => {
  */
 app.post("/api/login", async (req: any, res: any) => {
   try {
-    const { username } = req.body;
+    const username = (req.body.username || "").trim();
     if (!username) {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
-
     const options = await generateAuthenticationOptions(username);
     res.json(options);
   } catch (error) {

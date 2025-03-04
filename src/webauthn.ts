@@ -185,6 +185,7 @@ export async function verifyRegistration(
   credential: any,
   username: string
 ): Promise<Fido2AttestationResult> {
+  username = username.trim();
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
