@@ -4,7 +4,7 @@ import {
   getChallenge,
   deleteChallenge,
 } from "./challenge-store";
-import { randomBytes } from "crypto";
+import { createPublicKey, randomBytes } from "crypto";
 import { createHash } from "crypto";
 import cbor from "cbor";
 import User, { IUser } from "./models/User";
@@ -177,6 +177,42 @@ function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
   }
 }
 
+// Hilfsfunktion: Konvertiert einen COSE-encoded Public Key in das PEM-Format.
+function coseToPEM(cosePublicKey: Map<number, Buffer>): string {
+  // Prüfe, ob es sich um einen EC-Schlüssel handelt (kty sollte 2 sein).
+  const kty = cosePublicKey.get(1);
+  if (kty === undefined || kty.readUInt8(0) !== 2) {
+    throw new Error("Unsupported key type");
+  }
+  // Extrahiere x- und y-Koordinaten aus dem COSE-Key
+  const xBuffer = cosePublicKey.get(-2);
+  const yBuffer = cosePublicKey.get(-3);
+  if (!xBuffer || !yBuffer) {
+    throw new Error("Invalid COSE key format: x or y coordinate missing");
+  }
+  // Erstelle einen JWK (für EC-Schlüssel P-256)
+  const jwk = {
+    kty: "EC",
+    crv: "P-256",
+    x: xBuffer
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, ""),
+    y: yBuffer
+      .toString("base64")
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, ""),
+  };
+  // Konvertiere den JWK in PEM
+  const pem = createPublicKey({ key: jwk, format: "jwk" }).export({
+    format: "pem",
+    type: "spki",
+  });
+  return pem.toString();
+}
+
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
  * Nach erfolgreicher Verifikation wird der User in der MongoDB gespeichert.
@@ -190,7 +226,6 @@ export async function verifyRegistration(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  // console.log("📥 Credential für Verifizierung:", JSON.stringify(credential, null, 2));
   deleteChallenge(username);
 
   // Konvertiere id und rawId in ArrayBuffer
@@ -284,9 +319,10 @@ export async function verifyRegistration(
     credential.response.attestationObject =
       newAttestationBuffer.toString("base64");
   }
+  // (Weitere Anpassungen, z. B. Attestation-Objekt patchen und authData reassemblieren)
 
   try {
-    // Patch the attestation object
+    // Patch attestation object und führe attestationResult aus
     // Convert ftm from "apple-appattest" to "none" and remove attStmt
     const patchedAttestationObject = await patchAttestationObject(
       credential.response.attestationObject
@@ -307,11 +343,15 @@ export async function verifyRegistration(
     // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
     const existingUser = await User.findOne({ username });
     if (!existingUser) {
-      // Nutze die Funktion zum Speichern des Users in der DB
+      // Extrahiere den echten Public Key aus dem Attestation-Ergebnis
+      const cosePublicKey = attestationResult.authnrData.get(
+        "credentialPublicKey"
+      );
+      const publicKeyPEM = coseToPEM(cosePublicKey);
       await saveUserToDB({
         username,
         credentialId: credential.id.toString(), // Als Base64URL‑String
-        publicKey: "dummyPublicKey", // In Produktion aus attestationResult extrahieren
+        publicKey: publicKeyPEM, // Hier wird der extrahierte Public Key gespeichert
         counter: 0,
       });
       console.log("User erstellt für:", username);
