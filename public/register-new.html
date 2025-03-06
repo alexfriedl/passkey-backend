@@ -44,9 +44,7 @@
 
       // Hilfsfunktion: Base64URL zu ArrayBuffer
       function base64UrlToBuffer(base64UrlString) {
-        // Ersetze URL-spezifische Zeichen
         let base64 = base64UrlString.replace(/-/g, "+").replace(/_/g, "/");
-        // Auffüllen, falls notwendig
         while (base64.length % 4) {
           base64 += "=";
         }
@@ -56,6 +54,34 @@
           buffer[i] = binary.charCodeAt(i);
         }
         return buffer;
+      }
+
+      // Hilfsfunktion: Konvertiert Credential-Objekte (inkl. ArrayBuffer) in ein JSON-geeignetes Format
+      function publicKeyCredentialToJSON(pubKeyCred) {
+        if (pubKeyCred instanceof ArrayBuffer) {
+          return base64UrlEncode(new Uint8Array(pubKeyCred));
+        } else if (Array.isArray(pubKeyCred)) {
+          return pubKeyCred.map(publicKeyCredentialToJSON);
+        } else if (pubKeyCred && typeof pubKeyCred === "object") {
+          const obj = {};
+          for (const key in pubKeyCred) {
+            obj[key] = publicKeyCredentialToJSON(pubKeyCred[key]);
+          }
+          return obj;
+        } else {
+          return pubKeyCred;
+        }
+      }
+
+      function base64UrlEncode(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        let base64 = window.btoa(binary);
+        // Ersetze URL-ungültige Zeichen
+        return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
       }
 
       document
@@ -80,14 +106,6 @@
               body: JSON.stringify({ username }),
             });
             const options = await response.json();
-            // Falls authenticatorSelection vorhanden ist, setze requireResidentKey auf false und userVerification auf "preferred"
-            if (options.authenticatorSelection) {
-              options.authenticatorSelection.requireResidentKey = false;
-              options.authenticatorSelection.userVerification = "preferred";
-              debugLog(
-                "[Log] Anpassung: requireResidentKey -> false, userVerification -> preferred"
-              );
-            }
             debugLog(
               "[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2)
             );
@@ -100,11 +118,9 @@
             }
             debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
 
-            // Debug-Ausgabe, bevor der WebAuthn-Aufruf erfolgt:
             debugLog(
               "[Log] Starte WebAuthn-Registrierung über navigator.credentials.create..."
             );
-
             const credential = await navigator.credentials.create({
               publicKey: options,
             });
@@ -112,8 +128,26 @@
               "[Log] Credential erstellt: " + JSON.stringify(credential)
             );
 
-            // Hier kannst du das Credential an dein Backend senden (z.B. via fetch)
-            // z.B.: await fetch("/api/register/verify", { method: "POST", body: JSON.stringify(credential) });
+            // Konvertiere das Credential in ein JSON-geeignetes Format
+            const credentialJSON = publicKeyCredentialToJSON(credential);
+            debugLog(
+              "[Log] Credential JSON: " + JSON.stringify(credentialJSON, null, 2)
+            );
+
+            // Sende das Credential an den RP-Server zur Verifizierung
+            debugLog("[Log] Sende Registrierungsantwort an /api/register/verify...");
+            const verifyResponse = await fetch("/api/register/verify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(credentialJSON),
+            });
+            const verifyResult = await verifyResponse.json();
+            debugLog(
+              "[Log] Registrierungsantwort empfangen: " +
+                JSON.stringify(verifyResult, null, 2)
+            );
           } catch (error) {
             debugLog("[ERROR] " + error);
             console.error(error);
