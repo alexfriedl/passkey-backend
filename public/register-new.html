@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <title>WebAuthn Registrierung</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    label, input { font-size: 1.2em; }
+    button { font-size: 1.2em; padding: 8px 12px; margin-top: 10px; }
+    pre { background-color: #f4f4f4; padding: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Registrierung</h1>
+  <form id="registrationForm">
+    <label for="username">Benutzername:</label>
+    <input type="text" id="username" name="username" required>
+    <br>
+    <button type="submit">Registrierung starten</button>
+  </form>
+  
+  <pre id="log"></pre>
+  
+  <script>
+    const logElement = document.getElementById("log");
+    function debugLog(msg) {
+      console.log(msg);
+      logElement.textContent += msg + "\n";
+    }
+
+    // Hilfsfunktion: Base64URL zu ArrayBuffer
+    function base64UrlToBuffer(base64UrlString) {
+      // Ersetze URL-spezifische Zeichen
+      let base64 = base64UrlString.replace(/-/g, '+').replace(/_/g, '/');
+      // Auffüllen, falls notwendig
+      while (base64.length % 4) {
+        base64 += '=';
+      }
+      const binary = atob(base64);
+      const buffer = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        buffer[i] = binary.charCodeAt(i);
+      }
+      return buffer;
+    }
+
+    document.getElementById("registrationForm").addEventListener("submit", async function(event) {
+      event.preventDefault();
+      const username = document.getElementById("username").value.trim();
+      if (!username) {
+        debugLog("Bitte einen gültigen Benutzernamen eingeben.");
+        return;
+      }
+      debugLog(`[Log] Registrierung gestartet für: ${username}`);
+
+      try {
+        debugLog("[Log] Hole Challenge vom Server…");
+        // Passe die URL zum Challenge-Endpoint deines RP-Servers an:
+        const response = await fetch("/api/register", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ username })
+        });
+        const options = await response.json();
+        debugLog("[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2));
+
+        // Konvertiere die Challenge und user.id von Base64 zu ArrayBuffer
+        options.challenge = base64UrlToBuffer(options.challenge);
+        if (options.user && options.user.id) {
+          options.user.id = base64UrlToBuffer(options.user.id);
+          debugLog("[Log] Wandle user.id von Base64 zu ArrayBuffer um.");
+        }
+        debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
+
+        // Debug-Ausgabe, bevor der WebAuthn-Aufruf erfolgt:
+        debugLog("[Log] Starte WebAuthn-Registrierung über navigator.credentials.create...");
+
+        const credential = await navigator.credentials.create({ publicKey: options });
+        debugLog("[Log] Credential erstellt: " + JSON.stringify(credential));
+        
+        // Hier kannst du das Credential an dein Backend senden (z.B. via fetch)
+        // z.B.: await fetch("/api/register/verify", { method: "POST", body: JSON.stringify(credential) });
+
+      } catch (error) {
+        debugLog("[ERROR] " + error);
+        console.error(error);
+      }
+    });
+  </script>
+</body>
+</html>
