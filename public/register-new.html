@@ -58,19 +58,34 @@
 
       // Hilfsfunktion: Konvertiert Credential-Objekte (inkl. ArrayBuffer) in ein JSON-geeignetes Format
       function publicKeyCredentialToJSON(pubKeyCred) {
+        // Falls es ein ArrayBuffer ist, konvertieren wir es in einen Base64URL-codierten String
         if (pubKeyCred instanceof ArrayBuffer) {
           return base64UrlEncode(new Uint8Array(pubKeyCred));
-        } else if (Array.isArray(pubKeyCred)) {
-          return pubKeyCred.map(publicKeyCredentialToJSON);
-        } else if (pubKeyCred && typeof pubKeyCred === "object") {
+        }
+        // Falls es ein Array ist, verarbeite alle Elemente
+        else if (Array.isArray(pubKeyCred)) {
+          return pubKeyCred.map((item) => publicKeyCredentialToJSON(item));
+        }
+        // Wenn es eine echte PublicKeyCredential-Instanz ist, rufe toJSON() auf
+        else if (
+          typeof PublicKeyCredential !== "undefined" &&
+          pubKeyCred instanceof PublicKeyCredential &&
+          typeof pubKeyCred.toJSON === "function"
+        ) {
+          return pubKeyCred.toJSON();
+        }
+        // Falls es ein Objekt ist, konvertiere rekursiv alle Werte
+        else if (pubKeyCred && typeof pubKeyCred === "object") {
           const obj = {};
           for (const key in pubKeyCred) {
-            obj[key] = publicKeyCredentialToJSON(pubKeyCred[key]);
+            if (pubKeyCred.hasOwnProperty(key)) {
+              obj[key] = publicKeyCredentialToJSON(pubKeyCred[key]);
+            }
           }
           return obj;
-        } else {
-          return pubKeyCred;
         }
+        // Ansonsten den Wert unverändert zurückgeben
+        return pubKeyCred;
       }
 
       function base64UrlEncode(buffer) {
@@ -81,7 +96,10 @@
         }
         let base64 = window.btoa(binary);
         // Ersetze URL-ungültige Zeichen
-        return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+        return base64
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
       }
 
       document
@@ -131,11 +149,14 @@
             // Konvertiere das Credential in ein JSON-geeignetes Format
             const credentialJSON = publicKeyCredentialToJSON(credential);
             debugLog(
-              "[Log] Credential JSON: " + JSON.stringify(credentialJSON, null, 2)
+              "[Log] Credential JSON: " +
+                JSON.stringify(credentialJSON, null, 2)
             );
 
             // Sende das Credential an den RP-Server zur Verifizierung
-            debugLog("[Log] Sende Registrierungsantwort an /api/register/verify...");
+            debugLog(
+              "[Log] Sende Registrierungsantwort an /api/register/verify..."
+            );
             const verifyResponse = await fetch("/api/register/verify", {
               method: "POST",
               headers: {
