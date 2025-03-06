@@ -153,6 +153,12 @@
                 JSON.stringify(credentialJSON, null, 2)
             );
 
+            // Erstelle das finale Registrierungsantwort-Objekt, das den Benutzernamen und das Credential enthält
+            const registrationResponse = {
+              username: username,
+              credential: credentialJSON,
+            };
+
             // Sende das Credential an den RP-Server zur Verifizierung
             debugLog(
               "[Log] Sende Registrierungsantwort an /api/register/verify..."
@@ -162,7 +168,7 @@
               headers: {
                 "Content-Type": "application/json",
               },
-              body: JSON.stringify(credentialJSON),
+              body: JSON.stringify(registrationResponse),
             });
             const verifyResult = await verifyResponse.json();
             debugLog(
