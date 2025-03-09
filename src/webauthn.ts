@@ -73,13 +73,16 @@ export async function updateUserCounter(
 // --- fido2-lib Konfiguration ---
 const rpId = "www.appsprint.de";
 const fido2 = new Fido2Lib({
-  rpId,
-  rpName: "LocalKeyApp",
-  challengeSize: 32,
-  attestation: "direct", // Da iOS-App/DCAppAttestService ein eigenes Format liefert "apple-appattest"
-  cryptoParams: [-7], // ECDSA P-256
-  authenticatorAttachment: "platform",
   timeout: 60000,
+  rpId: "www.appsprint.de",
+  rpName: "LocalKeyApp",
+  // rpIcon: optional, falls benötigt
+  challengeSize: 32,
+  authenticatorAttachment: "platform", // Plattform-Authenticator (z. B. Secure Enclave)
+  authenticatorRequireResidentKey: false, // Erzwinge keinen resident key, damit iOS den Standard-Flow nutzt
+  authenticatorUserVerification: "required", // Der Nutzer muss sich verifizieren (z. B. via Face ID/Touch ID)
+  attestation: "none", // Keine herstellergebundene Attestation; iOS liefert dann evtl. ein eigenes Format
+  cryptoParams: [-7], // ES256 (ECDSA P-256)
 });
 
 /**
