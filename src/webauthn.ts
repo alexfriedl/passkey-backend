@@ -113,7 +113,7 @@ export async function generateRegistrationOptions(
     },
     authenticatorSelection: {
       authenticatorAttachment: "platform",
-      requireResidentKey: true,
+      requireResidentKey: false,
       userVerification: "required",
     },
   };
