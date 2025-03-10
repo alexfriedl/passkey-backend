@@ -9,6 +9,16 @@ import { createHash } from "crypto";
 import cbor from "cbor";
 import User, { IUser } from "./models/User";
 
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const len = bytes.byteLength;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return window.btoa(binary);
+}
+
 // --- Funktionen zur User-Verwaltung in MongoDB --- //
 
 /**
@@ -93,12 +103,13 @@ export async function generateRegistrationOptions(
 ): Promise<PublicKeyCredentialCreationOptions> {
   // Hole die Optionen von fido2-lib. Dabei ist options.challenge ein ArrayBuffer.
   const options = await fido2.attestationOptions();
-  console.log("[Log] Original Challenge (Base64URL): " + options.challenge);
+  console.log("[Log] Original Challenge (Base64URL): " + arrayBufferToBase64(options.challenge));
 
 
   // Konvertiere die Challenge in einen Base64URL-String und speichere ihn.
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
-  console.log("[Log] Challenge als ArrayBuffer: " + options.challenge);
+  
+  console.log("[Log] Challenge als ArrayBuffer (Base64): " + arrayBufferToBase64(options.challenge));
   storeChallenge(username, challengeBase64);
 
 
