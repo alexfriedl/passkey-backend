@@ -10,14 +10,9 @@ import cbor from "cbor";
 import User, { IUser } from "./models/User";
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
-  let binary = "";
-  const bytes = new Uint8Array(buffer);
-  const len = bytes.byteLength;
-  for (let i = 0; i < len; i++) {
-    binary += String.fromCharCode(bytes[i]);
-  }
-  return window.btoa(binary);
+  return Buffer.from(new Uint8Array(buffer)).toString('base64');
 }
+
 
 // --- Funktionen zur User-Verwaltung in MongoDB --- //
 
