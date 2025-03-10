@@ -93,10 +93,14 @@ export async function generateRegistrationOptions(
 ): Promise<PublicKeyCredentialCreationOptions> {
   // Hole die Optionen von fido2-lib. Dabei ist options.challenge ein ArrayBuffer.
   const options = await fido2.attestationOptions();
+  console.log("[Log] Original Challenge (Base64URL): " + options.challenge);
+
 
   // Konvertiere die Challenge in einen Base64URL-String und speichere ihn.
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("[Log] Challenge als ArrayBuffer: " + options.challenge);
   storeChallenge(username, challengeBase64);
+
 
   // Generiere eine User-ID und wandle sie in einen Base64URL-String um.
   const userIdBuffer = randomBytes(16);

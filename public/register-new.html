@@ -124,6 +124,7 @@
               body: JSON.stringify({ username }),
             });
             const options = await response.json();
+            debugLog("[Log] Original Challenge (Base64URL): " + options.challenge);
             debugLog(
               "[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2)
             );
@@ -135,6 +136,8 @@
               debugLog("[Log] Wandle user.id von Base64 zu ArrayBuffer um.");
             }
             debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
+            debugLog("[Log] Challenge als ArrayBuffer: " + options.challenge);
+
 
             debugLog(
               "[Log] Starte WebAuthn-Registrierung über navigator.credentials.create..."
