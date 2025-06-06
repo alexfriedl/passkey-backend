@@ -6,7 +6,9 @@
         "appID": "K6WRJB8J4N.localkeyboys.LocalKey",
         "paths": [
           "/register",
-          "/register/*"
+          "/register/*",
+          "/login",
+          "/login/*"
         ]
       }
     ]

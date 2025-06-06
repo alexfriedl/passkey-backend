@@ -8,6 +8,15 @@ import {
 } from "./webauthn";
 import path from "path";
 import { connectDB } from "./mongodb";
+import { Pool } from "pg";
+
+// Configure PostgreSQL connection (Neon Postgres on Heroku)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -36,6 +45,8 @@ app.get("/.well-known/apple-app-site-association", (req, res) => {
 });
 
 app.use(express.static(path.join(__dirname, "../public")));
+
+
 
 /**
  * 🔹 Schritt 1: Registrierung - Challenge generieren
@@ -162,6 +173,29 @@ app.post("/api/login/verify", async (req: any, res: any) => {
     res
       .status(500)
       .json({ error: "Fehler beim Verifizieren der Authentifizierung" });
+  }
+});
+
+/**
+ * 🔹 Debugging - JSON speichern
+ * POST /api/debugging
+ * Empfängt ein JSON-Objekt im Request-Body und speichert es in der Tabelle "debugging" (Spalte "data" vom Typ JSONB).
+ */
+app.post("/api/debugging", async (req: any, res: any) => {
+  // 🔒 Prüfe API-Schlüssel aus Query-Parameter
+  const apiKey = req.query.APIKEY;
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const jsonData = req.body;
+    // Stelle sicher, dass eine Tabelle "debugging" mit einer JSONB-Spalte "data" existiert.
+    const query = 'INSERT INTO debugging (data) VALUES ($1)';
+    await pool.query(query, [jsonData]);
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error("Fehler beim Speichern der Debugging-Daten:", error);
+    res.status(500).json({ error: "Fehler beim Speichern der Debugging-Daten" });
   }
 });
 
