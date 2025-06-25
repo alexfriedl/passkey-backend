@@ -2,7 +2,7 @@
 <html lang="de">
   <head>
     <meta charset="UTF-8" />
-    <title>WebAuthn Registrierung</title>
+    <title>WebAuthn Register</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <style>
       body {
@@ -25,15 +25,15 @@
     </style>
   </head>
   <body>
-    <h1>Registrierung</h1>
+    <h1>WebAuthn Register</h1>
     <form id="registrationForm">
-      <label for="username">Benutzername:</label>
+      <label for="username">Username:</label>
       <input type="text" id="username" name="username" required />
       <br />
-      <button type="submit">Registrierung starten</button>
+      <button type="submit">Register</button>
     </form>
 
-    <pre id="log"></pre>
+    <!--<pre id="log"></pre> -->
 
     <script>
       const logElement = document.getElementById("log");
@@ -125,36 +125,36 @@
             });
             const options = await response.json();
             debugLog("[Log] Original Challenge (Base64URL): " + options.challenge);
-            debugLog(
-              "[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2)
-            );
+            // debugLog(
+            //   "[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2)
+            // );
 
             // Konvertiere die Challenge und user.id von Base64 zu ArrayBuffer
             options.challenge = base64UrlToBuffer(options.challenge);
             if (options.user && options.user.id) {
               options.user.id = base64UrlToBuffer(options.user.id);
-              debugLog("[Log] Wandle user.id von Base64 zu ArrayBuffer um.");
+              // debugLog("[Log] Wandle user.id von Base64 zu ArrayBuffer um.");
             }
-            debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
-            debugLog("[Log] Challenge als ArrayBuffer: " + options.challenge);
+            // debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
+            // debugLog("[Log] Challenge als ArrayBuffer: " + options.challenge);
 
 
-            debugLog(
-              "[Log] Starte WebAuthn-Registrierung über navigator.credentials.create..."
-            );
+            // debugLog(
+            //   "[Log] Starte WebAuthn-Registrierung über navigator.credentials.create..."
+            // );
             const credential = await navigator.credentials.create({
               publicKey: options,
             });
-            debugLog(
-              "[Log] Credential erstellt: " + JSON.stringify(credential)
-            );
+            // debugLog(
+            //   "[Log] Credential erstellt: " + JSON.stringify(credential)
+            // );
 
             // Konvertiere das Credential in ein JSON-geeignetes Format
             const credentialJSON = publicKeyCredentialToJSON(credential);
-            debugLog(
-              "[Log] Credential JSON: " +
-                JSON.stringify(credentialJSON, null, 2)
-            );
+            // debugLog(
+            //   "[Log] Credential JSON: " +
+            //     JSON.stringify(credentialJSON, null, 2)
+            // );
 
             // Erstelle das finale Registrierungsantwort-Objekt, das den Benutzernamen und das Credential enthält
             const registrationResponse = {
@@ -163,9 +163,9 @@
             };
 
             // Sende das Credential an den RP-Server zur Verifizierung
-            debugLog(
-              "[Log] Sende Registrierungsantwort an /api/register/verify..."
-            );
+            // debugLog(
+            //  "[Log] Sende Registrierungsantwort an /api/register/verify..."
+            //);
             const verifyResponse = await fetch("/api/register/verify", {
               method: "POST",
               headers: {
@@ -174,10 +174,10 @@
               body: JSON.stringify(registrationResponse),
             });
             const verifyResult = await verifyResponse.json();
-            debugLog(
-              "[Log] Registrierungsantwort empfangen: " +
-                JSON.stringify(verifyResult, null, 2)
-            );
+            // debugLog(
+            //   "[Log] Registrierungsantwort empfangen: " +
+            //     JSON.stringify(verifyResult, null, 2)
+            // );
           } catch (error) {
             debugLog("[ERROR] " + error);
             console.error(error);
