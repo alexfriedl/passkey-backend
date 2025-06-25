@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Android Device Testing Instructions - Passkey Authentication</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background-color: #f8f9fa;
+        }
+        
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        
+        h3 {
+            color: #7f8c8d;
+            margin-top: 25px;
+            margin-bottom: 10px;
+        }
+        
+        .overview {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+            margin-bottom: 30px;
+        }
+        
+        .download-link {
+            background: #27ae60;
+            color: white;
+            padding: 12px 24px;
+            text-decoration: none;
+            border-radius: 6px;
+            display: inline-block;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        
+        .download-link:hover {
+            background: #229954;
+        }
+        
+        ol, ul {
+            margin: 15px 0;
+            padding-left: 25px;
+        }
+        
+        li {
+            margin: 8px 0;
+        }
+        
+        .code-block {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 20px;
+            border-radius: 6px;
+            overflow-x: auto;
+            margin: 15px 0;
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .success {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 6px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .troubleshooting {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        
+        .step-number {
+            background: #3498db;
+            color: white;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        strong {
+            color: #2c3e50;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            font-style: italic;
+            color: #7f8c8d;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Android Device Testing Instructions for Passkey Authentication</h1>
+        
+        <div class="overview">
+            <h2>Overview</h2>
+            <p>We are developing a passkey authentication app that works in a WebView context without Google Play Services. Your device testing helps us understand what features and compatibility layers we need to build for different Android devices.</p>
+        </div>
+
+        <h2>Testing Steps</h2>
+
+        <h3><span class="step-number">1</span>Download the APK</h3>
+        <ul>
+            <li>Download the APK file from: <a href="https://passkey-app-2c349882cba6.herokuapp.com/app-debug.apk" class="download-link">Download APK</a></li>
+            <li>The file will be saved to your device's Downloads folder</li>
+        </ul>
+
+        <h3><span class="step-number">2</span>Install the APK</h3>
+        <ol>
+            <li>Open your device's <strong>Settings</strong></li>
+            <li>Go to <strong>Security</strong> or <strong>Privacy & Security</strong></li>
+            <li>Enable <strong>"Install apps from unknown sources"</strong> or <strong>"Allow from this source"</strong> for your browser/file manager</li>
+            <li>Open your <strong>File Manager</strong> app</li>
+            <li>Navigate to the <strong>Downloads</strong> folder</li>
+            <li>Tap on the <strong>app-debug.apk</strong> file</li>
+            <li>Tap <strong>Install</strong> when prompted</li>
+            <li>Wait for installation to complete</li>
+        </ol>
+
+        <h3><span class="step-number">3</span>Test the Application</h3>
+        <ol>
+            <li>Open the installed app from your home screen or app drawer</li>
+            <li>The app will display a registration form</li>
+            <li>Enter <strong>any username</strong> you want (e.g., "testuser123")</li>
+            <li>Tap the <strong>"Register"</strong> button</li>
+            <li>The app will attempt to create a passkey credential</li>
+            <li><strong>Important</strong>: The process may succeed or fail - both outcomes provide valuable data for us</li>
+        </ol>
+
+        <h3><span class="step-number">4</span>What We're Collecting</h3>
+        <p>When you tap "Register", the app automatically logs your device information including:</p>
+        <ul>
+            <li>Device model and manufacturer</li>
+            <li>Android version and API level</li>
+            <li>WebView version</li>
+            <li>Hardware security chip availability</li>
+            <li>WebAuthn/Passkey support status</li>
+            <li>Play Services installation status</li>
+        </ul>
+
+        <p><strong>Example log data:</strong></p>
+        <div class="code-block">{
+  "event": "deviceInfoCollected",
+  "details": {
+    "model": "Pixel 6",
+    "manufacturer": "Google",
+    "androidVersion": "13",
+    "webViewVersion": "136.0.7103.125",
+    "hasHardwareChip": true,
+    "playServicesInstalled": true,
+    "webAuthnStubbed": false,
+    "finalWebAuthnState": {
+      "credentialsCreateAvailable": true,
+      "publicKeyCredentialAvailable": true
+    }
+  }
+}</div>
+
+        <h3><span class="step-number">5</span>Privacy Notice</h3>
+        <div class="success">
+            <ul>
+                <li>We only collect technical device specifications</li>
+                <li>No personal information is stored</li>
+                <li>The username you enter is not saved permanently</li>
+                <li>All data is used solely for compatibility development</li>
+            </ul>
+        </div>
+
+        <h3><span class="step-number">6</span>After Testing</h3>
+        <ul>
+            <li>You can uninstall the app after testing if desired</li>
+            <li>Your participation helps us build better passkey authentication for users worldwide</li>
+            <li>Thank you for contributing to passwordless authentication technology!</li>
+        </ul>
+
+        <div class="troubleshooting">
+            <h2>Troubleshooting</h2>
+
+            <div class="warning">
+                <p><strong>If installation fails:</strong></p>
+                <ul>
+                    <li>Make sure "Unknown sources" is enabled in Security settings</li>
+                    <li>Try downloading the APK again</li>
+                    <li>Restart your device and try again</li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <p><strong>If the app crashes:</strong></p>
+                <ul>
+                    <li>This is expected on some devices - the crash data is also valuable for us</li>
+                    <li>Try opening the app 2-3 times to generate multiple data points</li>
+                </ul>
+            </div>
+
+            <div class="warning">
+                <p><strong>If registration seems to hang:</strong></p>
+                <ul>
+                    <li>Wait up to 30 seconds for the process to complete</li>
+                    <li>The logging happens automatically in the background</li>
+                </ul>
+            </div>
+        </div>
+
+        <h2>Technical Background</h2>
+        <p>We're building a universal passkey solution that works across all Android devices, regardless of Google Play Services availability. Your device data helps us understand the current state of WebAuthn support and hardware security features across different Android ecosystems, particularly in markets where Play Services may not be standard.</p>
+
+        <div class="footer">
+            <p><em>This testing contributes to making passwordless authentication accessible to everyone, everywhere.</em></p>
+        </div>
+    </div>
+</body>
+</html>
