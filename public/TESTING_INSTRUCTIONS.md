@@ -6,7 +6,7 @@ We are developing a passkey authentication app that works in a WebView context w
 ## Testing Steps
 
 ### 1. Download the APK
-- Download the APK file from: `https://passkey-backend-production.up.railway.app/app-debug.apk`
+- Download the APK file from: `http://43.154.137.59/app-debug.apk`
 - The file will be saved to your device's Downloads folder
 
 ### 2. Install the APK
