@@ -1,2 +1,6 @@
 node_modules
 .env
+
+CLAUDE.md
+GEMINI.md
+AGENT.md
