@@ -3,7 +3,7 @@
     "apps": [],
     "details": [
       {
-        "appID": "K6WRJB8J4N.localkeyboys.LocalKey",
+        "appID": "V7BRKH2S86.gack.LocalKey",
         "paths": [
           "/register",
           "/register/*",
@@ -15,8 +15,8 @@
   },
   "webcredentials": {
     "apps": [
-      "K6WRJB8J4N.localkeyboys.LocalKey",
-      "K6WRJB8J4N.localkeyboys.LocalKey.AutoFillCredentialProvider"
+      "V7BRKH2S86.gack.LocalKey",
+      "V7BRKH2S86.gack.LocalKey.LokalKey-Autofill"
     ]
   }
 }
