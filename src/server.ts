@@ -55,6 +55,129 @@ app.use(express.static(path.join(__dirname, "../public")));
 app.use("/api/appattest", appAttestRouter);
 
 /**
+ * 🔹 Combined Passkey + App Attest Registration
+ * iOS-App sendet beide Attestations in einem Request
+ */
+app.post("/api/register/combined", async (req: any, res: any) => {
+  try {
+    console.log("\n========== COMBINED REGISTRATION START ==========");
+    console.log("Timestamp:", new Date().toISOString());
+    
+    const { username, passkey, appAttest } = req.body;
+    
+    // Validate required fields
+    if (!username || !passkey || !appAttest) {
+      console.error("Missing required fields in combined registration");
+      return res.status(400).json({ 
+        error: "Username, passkey, and appAttest data are required" 
+      });
+    }
+    
+    console.log("Processing combined registration for:", username);
+    
+    // Step 1: Verify Passkey Registration
+    console.log("\n📱 Step 1: Verifying Passkey...");
+    let passkeyResult;
+    try {
+      passkeyResult = await verifyRegistration(passkey.credential, username);
+      console.log("✅ Passkey verification successful");
+    } catch (error) {
+      console.error("❌ Passkey verification failed:", error);
+      return res.status(400).json({ 
+        error: "Passkey verification failed",
+        detail: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+    
+    // Step 2: Verify App Attest
+    console.log("\n🔒 Step 2: Verifying App Attest...");
+    let appAttestResult: any;
+    try {
+      // Create a mock request/response to use the app attest router
+      const appAttestReq = {
+        body: {
+          username,
+          keyId: appAttest.keyId,
+          attestationObject: appAttest.attestationObject,
+          localChallenge: appAttest.localChallenge
+        }
+      };
+      
+      // Create a response object to capture the result
+      const appAttestRes = {
+        json: (data: any) => { appAttestResult = data; },
+        status: (code: number) => ({
+          json: (data: any) => {
+            throw new Error(`App Attest failed with status ${code}: ${JSON.stringify(data)}`);
+          }
+        })
+      };
+      
+      // Find the attest route handler and call it
+      const attestRoute = appAttestRouter.stack.find((layer: any) => 
+        layer.route && layer.route.path === '/attest' && layer.route.methods.post
+      );
+      
+      if (!attestRoute) {
+        throw new Error("App Attest route handler not found");
+      }
+      
+      // Call the handler
+      await attestRoute.route.stack[0].handle(appAttestReq, appAttestRes, () => {});
+      
+      // Check if we got a result
+      if (!appAttestResult || !appAttestResult.verified) {
+        throw new Error("App Attest verification failed");
+      }
+      
+      console.log("✅ App Attest verification successful");
+    } catch (error) {
+      console.error("❌ App Attest verification failed:", error);
+      return res.status(400).json({ 
+        error: "App Attest verification failed",
+        detail: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+    
+    // Step 3: Link credentials in database (if needed)
+    console.log("\n🔗 Step 3: Linking credentials...");
+    // TODO: Update user model to store both credential IDs if needed
+    // For now, both are independently stored and linked by username
+    
+    // Prepare combined response
+    const response = {
+      success: true,
+      username,
+      passkey: {
+        verified: true,
+        attestationObject: passkeyResult.request.response.attestationObject,
+        clientDataJSON: passkeyResult.request.response.clientDataJSON
+      },
+      appAttest: {
+        verified: appAttestResult.verified,
+        keyId: appAttestResult.keyId,
+        publicKey: appAttestResult.publicKey,
+        counter: appAttestResult.counter,
+        appId: appAttestResult.appId
+      },
+      message: "Combined registration successful"
+    };
+    
+    console.log("\n✅ COMBINED REGISTRATION SUCCESSFUL!");
+    console.log("========== COMBINED REGISTRATION END ==========");
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error("\n❌ Combined registration error:", error);
+    res.status(500).json({ 
+      error: "Combined registration failed",
+      detail: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
+/**
  * 🔹 Schritt 1: Registrierung - Challenge generieren
  * iOS-App sendet: { username: "alice" }
  * Server antwortet mit den WebAuthn-Registrierungsoptionen
