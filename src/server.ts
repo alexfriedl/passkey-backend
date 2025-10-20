@@ -118,12 +118,13 @@ app.post("/api/register/combined", async (req: any, res: any) => {
         layer.route && layer.route.path === '/attest' && layer.route.methods.post
       );
       
-      if (!attestRoute) {
+      if (!attestRoute || !attestRoute.route || !attestRoute.route.stack || !attestRoute.route.stack[0]) {
         throw new Error("App Attest route handler not found");
       }
       
-      // Call the handler
-      await attestRoute.route.stack[0].handle(appAttestReq, appAttestRes, () => {});
+      // Call the handler with proper typing
+      const handler = attestRoute.route.stack[0].handle;
+      await handler(appAttestReq as any, appAttestRes as any, () => {});
       
       // Check if we got a result
       if (!appAttestResult || !appAttestResult.verified) {
