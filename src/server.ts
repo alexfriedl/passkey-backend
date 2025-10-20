@@ -9,6 +9,7 @@ import {
 import path from "path";
 import { connectDB } from "./mongodb";
 import { Pool } from "pg";
+import appAttestRouter from "./appattest";
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
 const pool = new Pool({
@@ -19,7 +20,7 @@ const pool = new Pool({
 });
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
 const MONGOPORT = process.env.MONGOPORT || 27017;
 
 app.use(express.json());
@@ -46,7 +47,8 @@ app.get("/.well-known/apple-app-site-association", (req, res) => {
 
 app.use(express.static(path.join(__dirname, "../public")));
 
-
+// Apple App Attest Router
+app.use("/api/appattest", appAttestRouter);
 
 /**
  * 🔹 Schritt 1: Registrierung - Challenge generieren
@@ -118,8 +120,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
 
     // Antworte mit dem Ergebnis
     // iOS-App wird die Daten speichern und für zukünftige Authentifizierungen verwenden
-    // Die an ios zurückgegebenen Daten sind in verifyRegistration gepatcht worden
-    // und enthalten die AttestationObject und clientDataJSON mit den Werten fmt: "none" und attStmt: {}
+    // Die an ios zurückgegebenen Daten enthalten die AttestationObject und clientDataJSON
     res.json({ success: true, ...simpleResult });
   } catch (error) {
     console.error(
@@ -199,7 +200,8 @@ app.post("/api/debugging", async (req: any, res: any) => {
   }
 });
 
-// Server starten
-app.listen(PORT, () => {
-  console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
+// Server starten - auf allen Interfaces für lokales Testing
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server läuft auf http://0.0.0.0:${PORT}`);
+  console.log(`   Lokal erreichbar unter: http://192.168.178.183:${PORT}`);
 });

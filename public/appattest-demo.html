@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Apple App Attest Demo - Lokale Challenge</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f7;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #1d1d1f;
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        button {
+            background: #007aff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background: #0051d5;
+        }
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .status {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Apple App Attest Demo</h1>
+        <p>Dieser Flow demonstriert die lokale Challenge-Generierung aus Formulardaten.</p>
+        
+        <div class="form-group">
+            <label for="username">Benutzername:</label>
+            <input type="text" id="username" placeholder="alice">
+        </div>
+        
+        <div class="form-group">
+            <label for="formData">Formulardaten (werden gehasht):</label>
+            <textarea id="formData" rows="4" placeholder='{"action": "transfer", "amount": 100, "to": "bob"}'>{
+  "action": "transfer",
+  "amount": 100,
+  "to": "bob",
+  "timestamp": null
+}</textarea>
+        </div>
+        
+        <div class="form-group">
+            <label for="keyId">Key ID (von iOS DCAppAttestService):</label>
+            <input type="text" id="keyId" placeholder="Base64URL encoded key ID">
+        </div>
+        
+        <div class="form-group">
+            <label for="attestationObject">Attestation Object (von iOS):</label>
+            <textarea id="attestationObject" rows="4" placeholder="Base64URL encoded attestation object"></textarea>
+        </div>
+        
+        <button onclick="generateLocalChallenge()">1. Challenge generieren</button>
+        <button onclick="submitAttestation()" id="submitBtn" disabled>2. Attestation senden</button>
+        
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let localChallengeHash = null;
+
+        // Hilfsfunktionen
+        async function sha256(message) {
+            const msgUint8 = new TextEncoder().encode(message);
+            const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+            return hashBuffer;
+        }
+
+        function arrayBufferToBase64Url(buffer) {
+            const bytes = new Uint8Array(buffer);
+            let binary = '';
+            for (let i = 0; i < bytes.byteLength; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary)
+                .replace(/\+/g, '-')
+                .replace(/\//g, '_')
+                .replace(/=+$/, '');
+        }
+
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<pre>${message}</pre>`;
+        }
+
+        async function generateLocalChallenge() {
+            try {
+                const formData = document.getElementById('formData').value;
+                if (!formData) {
+                    updateStatus('Bitte Formulardaten eingeben!', 'error');
+                    return;
+                }
+
+                // Parse und normalisiere die Daten
+                let dataObj;
+                try {
+                    dataObj = JSON.parse(formData);
+                } catch (e) {
+                    updateStatus('Fehler beim Parsen der JSON-Daten: ' + e.message, 'error');
+                    return;
+                }
+
+                // Füge Timestamp hinzu falls nicht vorhanden
+                if (!dataObj.timestamp) {
+                    dataObj.timestamp = new Date().toISOString();
+                }
+
+                // Deterministisches JSON (sortierte Keys)
+                const normalizedJson = JSON.stringify(dataObj, Object.keys(dataObj).sort());
+                
+                // Hash generieren
+                const hashBuffer = await sha256(normalizedJson);
+                localChallengeHash = arrayBufferToBase64Url(hashBuffer);
+
+                updateStatus(
+                    `Lokale Challenge generiert!\n\n` +
+                    `Normalisierte Daten:\n${normalizedJson}\n\n` +
+                    `SHA-256 Hash (Base64URL):\n${localChallengeHash}\n\n` +
+                    `Dieser Hash muss als clientDataHash an attestKey() übergeben werden.`,
+                    'success'
+                );
+
+                document.getElementById('submitBtn').disabled = false;
+
+                // Update textarea mit normalisierten Daten
+                document.getElementById('formData').value = JSON.stringify(dataObj, null, 2);
+
+            } catch (error) {
+                updateStatus('Fehler: ' + error.message, 'error');
+            }
+        }
+
+        async function submitAttestation() {
+            try {
+                const username = document.getElementById('username').value;
+                const keyId = document.getElementById('keyId').value;
+                const attestationObject = document.getElementById('attestationObject').value;
+
+                if (!username || !keyId || !attestationObject || !localChallengeHash) {
+                    updateStatus('Bitte alle Felder ausfüllen!', 'error');
+                    return;
+                }
+
+                updateStatus('Sende Attestation an Server...', 'info');
+
+                const response = await fetch('/api/appattest/attest', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        username,
+                        keyId,
+                        attestationObject,
+                        localChallenge: localChallengeHash
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    updateStatus(
+                        `Attestation erfolgreich verifiziert!\n\n` +
+                        JSON.stringify(result, null, 2),
+                        'success'
+                    );
+                } else {
+                    updateStatus(
+                        `Fehler bei der Verifikation:\n\n` +
+                        JSON.stringify(result, null, 2),
+                        'error'
+                    );
+                }
+
+            } catch (error) {
+                updateStatus('Netzwerkfehler: ' + error.message, 'error');
+            }
+        }
+
+        // iOS Integration Helper
+        function iOSIntegrationInfo() {
+            const info = `
+iOS Swift Code für lokale Challenge:
+
+// 1. Formulardaten normalisieren
+let formData = ["action": "transfer", "amount": 100, "to": "bob", "timestamp": ISO8601DateFormatter().string(from: Date())]
+let sortedKeys = formData.keys.sorted()
+let normalizedData = sortedKeys.map { "\\\"\\($0)\\\":\\(formData[$0]!)" }.joined(separator: ",")
+let jsonString = "{\\(normalizedData)}"
+
+// 2. Hash berechnen
+let jsonData = jsonString.data(using: .utf8)!
+let clientDataHash = Data(SHA256.hash(data: jsonData))
+
+// 3. Attestation durchführen
+let keyId = try await DCAppAttestService.shared.generateKey()
+let attestationObject = try await DCAppAttestService.shared.attestKey(keyId, clientDataHash: clientDataHash)
+
+// 4. An Server senden
+// keyId und attestationObject als Base64URL encoded
+`;
+            console.log(info);
+        }
+
+        // Bei Seitenladung Info anzeigen
+        window.onload = () => {
+            updateStatus('Bereit. Geben Sie Formulardaten ein und klicken Sie auf "Challenge generieren".', 'info');
+            iOSIntegrationInfo();
+        };
+    </script>
+</body>
+</html>

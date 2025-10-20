@@ -10,8 +10,11 @@
     "build": "tsc"
   },
   "dependencies": {
+    "@peculiar/x509": "^1.14.0",
+    "@types/cbor": "^5.0.1",
     "@types/pg": "^8.15.4",
     "@types/webappsec-credential-management": "^0.6.9",
+    "base64url": "^3.0.1",
     "body-parser": "^1.20.2",
     "cbor": "^10.0.3",
     "cors": "^2.8.5",

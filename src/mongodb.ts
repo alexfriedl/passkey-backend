@@ -8,6 +8,8 @@ export async function connectDB() {
     console.log("MongoDB connected");
   } catch (err) {
     console.error("MongoDB connection error:", err);
-    process.exit(1);
+    console.log("⚠️  Server läuft ohne MongoDB - App Attest Daten werden nicht persistiert!");
+    // Für lokales Testing ohne MongoDB weiterlaufen lassen
+    // process.exit(1);
   }
 }

@@ -86,7 +86,7 @@ const fido2 = new Fido2Lib({
   authenticatorAttachment: "platform", // Plattform-Authenticator (z. B. Secure Enclave)
   authenticatorRequireResidentKey: false, // Erzwinge keinen resident key, damit iOS den Standard-Flow nutzt
   authenticatorUserVerification: "required", // Der Nutzer muss sich verifizieren (z. B. via Face ID/Touch ID)
-  attestation: "none", // Keine herstellergebundene Attestation; iOS liefert dann evtl. ein eigenes Format
+  attestation: "none", // Privacy-first: iOS liefert meist 'none' Format
   cryptoParams: [-7], // ES256 (ECDSA P-256)
 });
 
@@ -131,64 +131,6 @@ export async function generateRegistrationOptions(
   return response;
 }
 
-/**
- * Hilfsfunktion: Passt das Attestation-Objekt an (setzt fmt auf "none" und leert attStmt).
- */
-async function patchAttestationObject(attestationObjectBase64Url: string) {
-  // Decode the attestation object from base64url
-  const attestationBuffer = Buffer.from(
-    attestationObjectBase64Url.replace(/-/g, "+").replace(/_/g, "/"),
-    "base64"
-  );
-  const attObj = await cbor.decodeFirst(attestationBuffer);
-  console.log("Decoded attestation object:", JSON.stringify(attObj, null, 2));
-
-  // Change the format to "none" and clear the attestation statement.
-  attObj.fmt = "none";
-  attObj.attStmt = {};
-  console.log("Patched attestation object:", JSON.stringify(attObj, null, 2));
-
-  // (Optionally, you may want to adjust the authenticator data if needed.)
-  // For instance, if your backend does extra checks on flags or AAGUID,
-  // make sure the authData is in the expected form.
-
-  // Re-encode the patched attestation object.
-  const newAttestationBuffer = cbor.encode(attObj);
-  return newAttestationBuffer.toString("base64url");
-}
-
-/**
- * Hilfsfunktion: Reassembles authenticator data aus einem Buffer.
- * Simuliert attested credential data, falls nicht vorhanden.
- */
-function reassembleAuthData(authDataBuffer: Buffer): ArrayBuffer {
-  const fixedPartLength = 37; // rpIdHash (32) + flags (1) + counter (4)
-  if (authDataBuffer.length === fixedPartLength) {
-    // No attested credential data is present.
-    // Simulate minimal attested credential data:
-    // - Dummy AAGUID: 16 bytes (all zeros)
-    // - Credential ID Length: 2 bytes, set to 0
-    const aaguid = Buffer.alloc(16, 0);
-    const credIdLen = Buffer.alloc(2, 0);
-    const dummyAttestedData = Buffer.concat([aaguid, credIdLen]);
-    // Update the fixed part's flags to indicate attested data is present:
-    const newFixed = Buffer.from(authDataBuffer.slice(0, fixedPartLength));
-    newFixed[32] = newFixed[32] | 0x40; // Set AT flag (0x40) along with UP flag (already set as 0x01)
-    const newAuthData = Buffer.concat([newFixed, dummyAttestedData]);
-    return newAuthData.buffer.slice(
-      newAuthData.byteOffset,
-      newAuthData.byteOffset + newAuthData.byteLength
-    );
-  } else if (authDataBuffer.length > fixedPartLength) {
-    // Attested data is already present. Return a clean copy:
-    return authDataBuffer.buffer.slice(
-      authDataBuffer.byteOffset,
-      authDataBuffer.byteOffset + authDataBuffer.byteLength
-    );
-  } else {
-    throw new Error("authDataBuffer is too short");
-  }
-}
 
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
@@ -210,110 +152,11 @@ export async function verifyRegistration(
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
-  // STEP 1: clientDataJSON anpassen
-  {
-    const clientDataBuffer = Buffer.from(
-      credential.response.clientDataJSON,
-      "base64"
-    );
-    let clientData;
-    try {
-      clientData = JSON.parse(clientDataBuffer.toString("utf8"));
-    } catch (err) {
-      throw new Error("Fehler beim Parsen von clientDataJSON");
-    }
-    clientData.challenge = challengeBase64;
-    const newClientDataStr = JSON.stringify(clientData);
-    credential.response.clientDataJSON =
-      Buffer.from(newClientDataStr).toString("base64");
-  }
-
-  function base64UrlToBase64(base64url: string) {
-    let base64 = base64url.replace(/-/g, "+").replace(/_/g, "/");
-    while (base64.length % 4 !== 0) {
-      base64 += "=";
-    }
-    return base64;
-  }
-
-  function base64ToHex(base64: any) {
-    const buffer = Buffer.from(base64, "base64");
-    return buffer.toString("hex");
-  }
-
-  // console.log(
-  //   "📥 Credential Attestation Object (Base64):",
-  //   base64UrlToBase64(credential.response.attestationObject)
-  // );
-
-  // console.log(
-  //   "📥 Credential Attestation Object (Hex):",
-  //   base64ToHex(base64UrlToBase64(credential.response.attestationObject))
-  // );
-
-  // STEP 2: Attestation-Objekt anpassen
-  {
-    const attestationBuffer = Buffer.from(
-      credential.response.attestationObject,
-      "base64"
-    );
-    let attestationObj = await cbor.decodeFirst(attestationBuffer);
-    attestationObj.fmt = "none";
-    attestationObj.attStmt = {};
-
-    // Get authData as a Buffer
-    let authDataBuffer = Buffer.isBuffer(attestationObj.authData)
-      ? attestationObj.authData
-      : Buffer.from(attestationObj.authData);
-
-    // Patch rpIdHash (first 32 bytes)
-    const expectedRpIdHash = createHash("sha256")
-      .update("www.appsprint.de")
-      .digest();
-    expectedRpIdHash.copy(authDataBuffer, 0, 0, 32);
-
-    // Ensure the UP flag is set (bit 0, 0x01)
-    authDataBuffer[32] = authDataBuffer[32] | 0x01;
-
-    // Reassemble authData:
-    const cleanAuthDataBuffer = reassembleAuthData(authDataBuffer);
-    console.log("Clean authData length:", cleanAuthDataBuffer.byteLength);
-    console.log(
-      "Clean authData (hex):",
-      Buffer.from(cleanAuthDataBuffer).toString("hex")
-    );
-
-    // Optionally log the AAGUID portion (bytes 37 to 52, if present):
-    if (cleanAuthDataBuffer.byteLength >= 55) {
-      const aaguidHex = Buffer.from(cleanAuthDataBuffer)
-        .toString("hex")
-        .substr(74, 32);
-      console.log("AAGUID (hex):", aaguidHex);
-    }
-
-    attestationObj.authData = cleanAuthDataBuffer;
-
-    const newAttestationBuffer = cbor.encode(attestationObj);
-    credential.response.attestationObject =
-      newAttestationBuffer.toString("base64");
-  }
-  // (Weitere Anpassungen, z. B. Attestation-Objekt patchen und authData reassemblieren)
-
   try {
-    // Patch attestation object und führe attestationResult aus
-    // Convert ftm from "apple-appattest" to "none" and remove attStmt
-    const patchedAttestationObject = await patchAttestationObject(
-      credential.response.attestationObject
-    );
-    console.log(
-      "Patched attestation object (Base64URL):",
-      patchedAttestationObject
-    );
-    credential.response.attestationObject = patchedAttestationObject;
-
+    // Direkte Verifikation ohne Patching
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
-      origin: `https://${"www.appsprint.de"}`,
+      origin: `https://${rpId}`,
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
@@ -321,8 +164,6 @@ export async function verifyRegistration(
     // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
     const existingUser = await User.findOne({ username });
     if (!existingUser) {
-      // Anstatt die (nicht vorhandene) Eigenschaft "credentialPublicKey" zu verwenden,
-      // extrahieren wir den Public Key direkt aus "credentialPublicKeyPem".
       const publicKeyPEM = attestationResult.authnrData.get(
         "credentialPublicKeyPem"
       );
@@ -332,7 +173,7 @@ export async function verifyRegistration(
       await saveUserToDB({
         username,
         credentialId: credential.id.toString(), // Als Base64URL‑String
-        publicKey: publicKeyPEM, // Hier wird der extrahierte Public Key gespeichert
+        publicKey: publicKeyPEM,
         counter: 0,
       });
       console.log("User erstellt für:", username);
