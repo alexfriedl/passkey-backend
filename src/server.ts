@@ -1,5 +1,9 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 import {
   generateRegistrationOptions,
   verifyRegistration,
@@ -200,8 +204,7 @@ app.post("/api/debugging", async (req: any, res: any) => {
   }
 });
 
-// Server starten - auf allen Interfaces für lokales Testing
+// Server starten
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server läuft auf http://0.0.0.0:${PORT}`);
-  console.log(`   Lokal erreichbar unter: http://192.168.178.183:${PORT}`);
+  console.log(`🚀 Server läuft auf Port ${PORT}`);
 });

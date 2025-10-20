@@ -57,7 +57,7 @@
       }
 
       async function register() {
-        const API_URL = "https://www.appsprint.de/api";
+        const API_URL = "/api"; // Use relative path for local testing
         const username = document.getElementById("username").value;
         if (!username) {
           alert("Bitte einen Benutzernamen eingeben!");

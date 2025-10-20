@@ -76,10 +76,11 @@ export async function updateUserCounter(
 }
 
 // --- fido2-lib Konfiguration ---
-const rpId = "www.appsprint.de";
+const rpId = process.env.RPID || "localhost";
+console.log("🔧 WebAuthn rpId configured as:", rpId);
 const fido2 = new Fido2Lib({
   timeout: 60000,
-  rpId: "www.appsprint.de",
+  rpId: rpId,
   rpName: "LocalKeyApp",
   // rpIcon: optional, falls benötigt
   challengeSize: 32,
@@ -115,6 +116,10 @@ export async function generateRegistrationOptions(
   // Erstelle das Response-Objekt mit Challenge und User-ID als Strings.
   const response: PublicKeyCredentialCreationOptions = {
     ...options,
+    rp: {
+      name: "LocalKeyApp",
+      id: rpId  // Use the configured rpId
+    },
     challenge: challengeBase64, // als Base64URL-String
     user: {
       id: userIdBase64, // als Base64URL-String
@@ -156,7 +161,7 @@ export async function verifyRegistration(
     // Direkte Verifikation ohne Patching
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: process.env.ORIGIN || `https://${rpId}`,
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
