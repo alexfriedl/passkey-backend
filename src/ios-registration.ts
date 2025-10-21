@@ -105,9 +105,15 @@ export async function verifyIOSRegistration(
     // Replace the hash with synthetic JSON for fido2-lib validation
     // Store original hash for audit
     const originalClientDataHash = credential.response.clientDataJSON;
-    credential.response.clientDataJSON = syntheticClientDataJSON;
+    
+    // IMPORTANT: fido2-lib expects clientDataJSON as base64url encoded string
+    // Convert our synthetic JSON to base64url
+    const syntheticClientDataBase64 = Buffer.from(syntheticClientDataJSON).toString('base64url');
+    credential.response.clientDataJSON = syntheticClientDataBase64;
     
     console.log("⚠️  iOS Extension: Using synthetic clientDataJSON for verification");
+    console.log("Synthetic clientDataJSON:", syntheticClientDataJSON);
+    console.log("Synthetic clientDataJSON (base64url):", syntheticClientDataBase64);
     console.log("Original server challenge (for audit):", serverChallenge);
     console.log("Original iOS clientDataHash (stored for audit):", originalClientDataHash);
     
