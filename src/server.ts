@@ -265,13 +265,24 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         .json({ error: "Username und Credential sind erforderlich" });
     }
     
-    // Skip if coming from iOS combined registration
-    if (platform === "ios-extension-combined") {
-      console.log("[REGISTER/VERIFY] Skipping - already verified in combined registration");
-      return res.json({ 
-        verified: true, 
-        message: "Already verified through combined registration" 
-      });
+    // Handle iOS extension registrations
+    if (platform === "ios-extension") {
+      console.log("[REGISTER/VERIFY] iOS Extension detected - using special handling");
+      try {
+        // For iOS extensions, we need to handle the challenge differently
+        const result = await verifyIOSRegistration(credential, username, "");
+        console.log("✅ iOS Extension registration verified successfully");
+        return res.json({ 
+          verified: true, 
+          message: "iOS Extension registration successful" 
+        });
+      } catch (error) {
+        console.error("❌ iOS Extension registration failed:", error);
+        return res.status(400).json({ 
+          error: "iOS Extension registration failed",
+          detail: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
     }
     
     console.log(
