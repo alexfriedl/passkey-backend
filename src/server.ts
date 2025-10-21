@@ -15,6 +15,7 @@ import { connectDB } from "./mongodb";
 import { Pool } from "pg";
 import appAttestRouter from "./appattest";
 import { verifyIOSRegistration } from "./ios-registration";
+import { registerIOSSimple } from "./ios-simple-registration";
 import { getChallenge } from "./challenge-store";
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
@@ -269,63 +270,69 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
-    console.log("[REGISTER/VERIFY] Platform:", platform || "web");
     
-    // Check if this is from iOS Extension and needs special handling
-    if (platform === "ios-extension") {
-      console.log("🍎 iOS Extension detected - using special handling");
-      
-      // Get the stored challenge
-      const storedChallenge = getChallenge(username);
-      if (!storedChallenge) {
-        console.error("No challenge found for user:", username);
-        return res.status(400).json({ error: "Challenge not found" });
-      }
-      
-      try {
-        // Use iOS-specific registration handler
-        const result = await verifyIOSRegistration(
-          credential,
-          username,
-          storedChallenge
-        );
+    try {
+      // Try standard verification first
+      const result = await verifyRegistration(credential, username);
+      console.log(
+        "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
+        result
+      );
+
+      // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
+      const simpleResult = {
+        attestationObject: result.request.response.attestationObject,
+        clientDataJSON: result.request.response.clientDataJSON,
+      };
+
+      console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
+
+      // Antworte mit dem Ergebnis
+      res.json({ success: true, ...simpleResult });
+    } catch (error: any) {
+      // Check if the error is due to clientDataHash from iOS
+      if (error.message?.includes("clientDataJson") || 
+          error.message?.includes("parse") ||
+          error.message?.includes("JSON")) {
         
-        // Return success with the credential data
-        res.json({ 
-          success: true,
-          attestationObject: credential.response.attestationObject,
-          clientDataJSON: credential.response.clientDataJSON
-        });
-      } catch (error) {
-        console.error("iOS registration verification failed:", error);
-        return res.status(400).json({ 
-          error: "iOS registration verification failed",
-          detail: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    } else {
-      // Standard web flow - the original working flow
-      console.log("🌐 Standard web flow");
-      
-      try {
-        // Führe die Verifikation durch
-        const result = await verifyRegistration(credential, username);
-        console.log(
-          "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
-          result
-        );
-
-        // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
-        const simpleResult = {
-          attestationObject: result.request.response.attestationObject,
-          clientDataJSON: result.request.response.clientDataJSON,
-        };
-
-        console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
-
-        // Antworte mit dem Ergebnis
-        res.json({ success: true, ...simpleResult });
-      } catch (error) {
+        console.log("🍎 Standard verification failed - trying iOS-compatible approach");
+        
+        // Get the stored challenge
+        const storedChallenge = getChallenge(username);
+        if (!storedChallenge) {
+          console.error("No challenge found for user:", username);
+          return res.status(400).json({ error: "Challenge not found" });
+        }
+        
+        try {
+          // Use simplified iOS registration handler
+          const iosResult = await registerIOSSimple({
+            credential,
+            username,
+            challenge: storedChallenge
+          });
+          
+          if (!iosResult.success) {
+            throw new Error(iosResult.error || "iOS registration failed");
+          }
+          
+          console.log("✅ iOS-compatible registration successful");
+          
+          // Return success with the original credential data
+          res.json({ 
+            success: true,
+            attestationObject: credential.response.attestationObject,
+            clientDataJSON: credential.response.clientDataJSON
+          });
+        } catch (iosError) {
+          console.error("iOS registration also failed:", iosError);
+          return res.status(400).json({ 
+            error: "Registration failed",
+            detail: iosError instanceof Error ? iosError.message : "Unknown error"
+          });
+        }
+      } else {
+        // Other error - return original error
         console.error(
           "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
           error
