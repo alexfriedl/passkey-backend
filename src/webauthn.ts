@@ -188,7 +188,8 @@ export async function verifyRegistration(
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
-    throw new Error("Fehler beim Verifizieren der Registrierung.");
+    // Re-throw the original error so we can detect clientDataJSON parsing errors
+    throw error;
   }
 }
 
