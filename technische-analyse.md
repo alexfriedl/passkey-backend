@@ -24,7 +24,12 @@ Das PasskeyGuard-System implementiert eine duale WebAuthn-Registrierungsstrategi
 
 ### 1.2 Technische Herausforderungen
 
-Die Hauptherausforderung besteht in der iOS-spezifischen Limitation: iOS Credential Provider Extensions können nur einen `clientDataHash` (SHA-256 Hash) senden, nicht das vollständige `clientDataJSON` wie es der WebAuthn-Standard vorsieht. Diese Einschränkung erfordert spezielle Behandlung auf der Backend-Seite.
+Die Hauptherausforderung besteht in der iOS-spezifischen Unterscheidung zwischen zwei Authentifizierungs-Pfaden:
+
+1. **Safari/Native WebAuthn über AuthenticationServices**: Normales `clientDataJSON` wie im WebAuthn-Standard
+2. **Credential Provider Extension**: Nur `clientDataHash` (SHA-256) verfügbar - dies ist Apple's by-design Privacy/Isolation-Maßnahme
+
+Diese Unterscheidung erfordert spezielle Backend-Behandlung für Extension-basierte Flows.
 
 ### 1.3 Warum zwei Modi?
 
@@ -137,58 +142,80 @@ let attestationObj = generateRegisterAttestionObject(
 - Private Key verlässt niemals das Gerät
 - Biometrische Bindung (Face ID/Touch ID)
 
-#### Schritt 3: Backend-Verifikation
+#### Schritt 3: Backend-Verifikation (Pfad-spezifisch)
 
 ```javascript
-// Backend erkennt iOS clientDataHash
-const isIOSHash = clientDataJSON && 
-                  typeof clientDataJSON === 'string' && 
-                  clientDataJSON.length < 50 && 
-                  !clientDataJSON.startsWith('{') && 
-                  !clientDataJSON.startsWith('ey');
+// Backend erkennt Credential Provider Extension Hash
+const isExtensionHash = clientDataJSON && 
+                        typeof clientDataJSON === 'string' && 
+                        clientDataJSON.length < 50 && 
+                        !clientDataJSON.startsWith('{') && 
+                        !clientDataJSON.startsWith('ey');
 
-if (isIOSHash) {
-    // iOS-spezifische Behandlung
+if (isExtensionHash) {
+    // Extension-spezifische Behandlung (nur clientDataHash verfügbar)
     const syntheticClientData = {
         type: "webauthn.create",
         challenge: serverChallenge,
         origin: origin,
         crossOrigin: false
     };
+} else {
+    // Safari/Native WebAuthn (vollständiges clientDataJSON verfügbar)
+    const clientData = JSON.parse(
+        Buffer.from(clientDataJSON, 'base64').toString()
+    );
+    // Normale Verifikation
 }
 ```
 
 **Was passiert:**
-- Backend erkennt automatisch iOS clientDataHash (43 Zeichen Base64)
-- Erstellt synthetisches clientDataJSON für fido2-lib Kompatibilität
-- Verifiziert Attestation Object und Public Key
+- Backend unterscheidet zwischen Extension- und Safari/Native-Flow
+- **Extension-Flow**: Erstellt synthetisches clientDataJSON für fido2-lib Kompatibilität
+- **Safari/Native-Flow**: Verwendet das vollständige clientDataJSON direkt
+- Verifiziert Attestation Object und Public Key pfad-unabhängig
 - Speichert User in MongoDB
 
 **Warum:**
-- iOS Extensions können technisch kein vollständiges clientDataJSON erstellen
-- Synthetisches JSON ermöglicht Verwendung von Standard-Libraries
-- Kompatibilität mit WebAuthn-Ökosystem
+- **Extension-Limitation**: Apple's Privacy-Design erlaubt nur clientDataHash
+- **Safari/Native**: Vollzugriff auf clientDataJSON wie WebAuthn-Standard
+- **Kompatibilität**: Beide Pfade nutzen dieselbe Backend-Verifikation
+- **Flexibilität**: Unterstützt verschiedene iOS-Integration-Szenarien
 
-### 3.3 iOS clientDataHash Problem im Detail
+### 3.3 iOS clientDataHash vs. clientDataJSON - Pfad-Unterscheidung
 
-**Technischer Hintergrund:**
-- iOS Extensions erhalten von Apple nur den SHA-256 Hash der clientData
-- Dies ist eine Sicherheitsmaßnahme von Apple
-- Der Hash kann nicht rückgängig gemacht werden
+**Wichtige Klarstellung:**
+iOS gibt **nicht generell** nur den `clientDataHash` zurück. Das Verhalten hängt vom Authentifizierungs-Pfad ab:
 
-**Lösung:**
+#### 3.3.1 Safari/Native WebAuthn (App selbst als RP-Client)
 ```javascript
-// Original clientData (nicht verfügbar in iOS Extension):
+// Normal: vollständiges clientDataJSON
 {
     "type": "webauthn.create",
-    "challenge": "base64-challenge",
+    "challenge": "base64-challenge", 
     "origin": "https://example.com",
     "crossOrigin": false
 }
+```
+**Was passiert:**
+- Das System baut das `clientDataJSON` und liefert es im Response
+- Entspricht dem üblichen WebAuthn-Verhalten
+- AuthenticationServices direkt in der App verwendet
 
-// iOS sendet nur: SHA256(clientData) als Base64
+#### 3.3.2 Credential Provider Extension (Drittanbieter-Provider)
+```javascript
+// Nur verfügbar: SHA256(clientData) als Base64
 "b0D43VTLrgn4xQlyFzrxHsMJSOpEDC0SYC_rJH0yN7g"
 ```
+**Was passiert:**
+- Extension arbeitet mit `ASPasskeyCredentialRequestParameters.clientDataHash`
+- Dies ist **by-design** (Privacy/Isolation) von Apple
+- Siehe Apple Developer Docs: `ASPasskeyCredentialRequest.clientDataHash`
+
+**Warum die Unterscheidung:**
+- **Privacy**: Extensions bekommen weniger Kontext
+- **Isolation**: Reduzierte Angriffsfläche für Drittanbieter-Provider
+- **Security**: Verhindert vollständigen Zugriff auf clientData in Extensions
 
 ---
 
@@ -557,26 +584,34 @@ Backend-Server wird kompromittiert.
 
 ### 6.3 Spezifische Risiken der iOS-Implementierung
 
-#### 6.3.1 Synthetisches clientDataJSON
+#### 6.3.1 Synthetisches clientDataJSON (Extension-Flow)
 
 **Risiko:**
-Backend erstellt clientDataJSON anstatt es vom Client zu erhalten.
+Backend erstellt clientDataJSON für Credential Provider Extensions, da Apple nur clientDataHash bereitstellt.
 
 **Mitigation:**
 ```javascript
-// Strikte Validierung
-const syntheticClientData = {
-    type: "webauthn.create", // Fest kodiert
-    challenge: storedChallenge, // Vom Server generiert
-    origin: "https://www.appsprint.de", // Fest kodiert
-    crossOrigin: false // Fest kodiert
-};
+// Strikte Validierung nur für Extension-Flow
+if (authPath === 'extension') {
+    const syntheticClientData = {
+        type: "webauthn.create", // Fest kodiert
+        challenge: storedChallenge, // Vom Server generiert  
+        origin: "https://www.appsprint.de", // Fest kodiert
+        crossOrigin: false // Fest kodiert
+    };
+} else {
+    // Safari/Native: verwende echtes clientDataJSON
+    const clientData = JSON.parse(
+        Buffer.from(clientDataJSON, 'base64').toString()
+    );
+}
 ```
 
 **Bewertung:**
-- Akzeptables Risiko für iOS-Kompatibilität
-- Keine zusätzlichen Angriffsvektoren
-- Challenge-Binding bleibt erhalten
+- **Extension-Flow**: Akzeptables Risiko - Apple's by-design Limitation
+- **Safari/Native-Flow**: Normaler WebAuthn-Standard, kein synthetisches JSON
+- Challenge-Binding bleibt in beiden Pfaden erhalten
+- Keine zusätzlichen Angriffsvektoren, da pfad-spezifisch
 
 #### 6.3.2 Pre-Generated App Attest Keys
 
@@ -677,25 +712,38 @@ class ChallengeStore {
 - Race Conditions bei parallelen Requests
 - Cleanup von abgelaufenen Challenges
 
-#### 7.2.2 iOS-Detection
+#### 7.2.2 iOS Extension-Detection
 
 ```javascript
-function detectIOSClientDataHash(clientDataJSON) {
-    // Heuristiken für iOS-Erkennung
+function detectCredentialProviderExtension(clientDataJSON) {
+    // Heuristiken für Credential Provider Extension-Erkennung
     if (!clientDataJSON) return false;
     if (typeof clientDataJSON !== 'string') return false;
     if (clientDataJSON.length !== 43 && clientDataJSON.length !== 44) return false;
     
-    // Base64 URL-safe pattern
+    // Base64 URL-safe pattern (clientDataHash)
     if (!/^[A-Za-z0-9_-]+$/.test(clientDataJSON)) return false;
     
-    // Kein JSON
+    // Unterscheidung: Hash vs. vollständiges JSON
     try {
         JSON.parse(Buffer.from(clientDataJSON, 'base64url').toString());
-        return false; // Ist JSON, also kein Hash
+        return false; // Ist JSON = Safari/Native WebAuthn
     } catch {
-        return true; // Ist kein JSON, wahrscheinlich Hash
+        return true; // Ist kein JSON = Credential Provider Extension
     }
+}
+
+// Zusätzliche Kontext-Informationen nutzen
+function determineIOSAuthPath(clientDataJSON, userAgent, platformHint) {
+    if (platformHint === 'ios-extension') {
+        return 'extension'; // Explizite Kennzeichnung
+    }
+    
+    if (detectCredentialProviderExtension(clientDataJSON)) {
+        return 'extension'; // Heuristik
+    }
+    
+    return 'safari'; // Safari oder native AuthenticationServices
 }
 ```
 
