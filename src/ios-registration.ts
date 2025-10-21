@@ -61,8 +61,19 @@ export async function verifyIOSRegistration(
     credential.id = base64UrlToArrayBuffer(credential.id);
     
     // Decode clientDataJSON to extract iOS-generated challenge
+    // clientDataJSON comes as base64URL encoded string from iOS
+    console.log("Raw clientDataJSON from iOS:", credential.response.clientDataJSON);
+    
+    // Convert base64URL to base64
+    let base64 = credential.response.clientDataJSON.replace(/-/g, '+').replace(/_/g, '/');
+    while (base64.length % 4) {
+      base64 += '=';
+    }
+    
+    console.log("Converted to base64:", base64);
+    
     const clientDataJSON = JSON.parse(
-      Buffer.from(credential.response.clientDataJSON, 'base64').toString()
+      Buffer.from(base64, 'base64').toString('utf8')
     );
     console.log("iOS-generated challenge:", clientDataJSON.challenge);
     console.log("Origin from iOS:", clientDataJSON.origin);
