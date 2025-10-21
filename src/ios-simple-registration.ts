@@ -205,7 +205,7 @@ export async function registerIOSSimple(request: IOSRegistrationRequest): Promis
     console.error('Registration error:', error);
     return {
       success: false,
-      error: error.message || 'Registration failed'
+      error: error instanceof Error ? error.message : 'Registration failed'
     };
   }
 }
