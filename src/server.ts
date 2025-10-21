@@ -266,59 +266,76 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         .json({ error: "Username und Credential sind erforderlich" });
     }
     
-    // Handle iOS extension registrations
-    if (platform === "ios-extension") {
-      console.log("[REGISTER/VERIFY] iOS Extension detected - using special handling");
-      try {
-        // Get the stored challenge for this user
-        const challenge = getChallenge(username);
-        if (!challenge) {
-          throw new Error("Challenge not found for user");
-        }
-        
-        // For iOS extensions, we need to handle the challenge differently
-        await verifyIOSRegistration(credential, username, challenge);
-        console.log("✅ iOS Extension registration verified successfully");
-        return res.json({ 
-          verified: true, 
-          message: "iOS Extension registration successful" 
-        });
-      } catch (error) {
-        console.error("❌ iOS Extension registration failed:", error);
-        return res.status(400).json({ 
-          error: "iOS Extension registration failed",
-          detail: error instanceof Error ? error.message : "Unknown error"
-        });
-      }
-    }
-    
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
-    // console.log(
-    //   "[REGISTER/VERIFY] Credential:",
-    //   JSON.stringify(credential, null, 2)
-    // );
+    console.log("[REGISTER/VERIFY] Platform:", platform || "web");
+    
+    // Check if this is from iOS Extension and needs special handling
+    if (platform === "ios-extension") {
+      console.log("🍎 iOS Extension detected - using special handling");
+      
+      // Get the stored challenge
+      const storedChallenge = getChallenge(username);
+      if (!storedChallenge) {
+        console.error("No challenge found for user:", username);
+        return res.status(400).json({ error: "Challenge not found" });
+      }
+      
+      try {
+        // Use iOS-specific registration handler
+        const result = await verifyIOSRegistration(
+          credential,
+          username,
+          storedChallenge
+        );
+        
+        // Return success with the credential data
+        res.json({ 
+          success: true,
+          verified: true,
+          attestationObject: credential.response.attestationObject,
+          clientDataJSON: credential.response.clientDataJSON
+        });
+      } catch (error) {
+        console.error("iOS registration verification failed:", error);
+        return res.status(400).json({ 
+          error: "iOS registration verification failed",
+          detail: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else {
+      // Standard web flow - the original working flow
+      console.log("🌐 Standard web flow");
+      
+      try {
+        // Führe die Verifikation durch
+        const result = await verifyRegistration(credential, username);
+        console.log(
+          "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
+          result
+        );
 
-    // Führe die Verifikation durch
-    const result = await verifyRegistration(credential, username);
-    console.log(
-      "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
-      result
-    );
+        // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
+        const simpleResult = {
+          attestationObject: result.request.response.attestationObject,
+          clientDataJSON: result.request.response.clientDataJSON,
+        };
 
-    // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
-    const simpleResult = {
-      attestationObject: result.request.response.attestationObject,
-      clientDataJSON: result.request.response.clientDataJSON,
-    };
+        console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
 
-    console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
-
-    // Antworte mit dem Ergebnis
-    // iOS-App wird die Daten speichern und für zukünftige Authentifizierungen verwenden
-    // Die an ios zurückgegebenen Daten enthalten die AttestationObject und clientDataJSON
-    res.json({ success: true, ...simpleResult });
+        // Antworte mit dem Ergebnis
+        res.json({ success: true, ...simpleResult });
+      } catch (error) {
+        console.error(
+          "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
+          error
+        );
+        res
+          .status(500)
+          .json({ error: "Fehler beim Verifizieren der Registrierung" });
+      }
+    }
   } catch (error) {
     console.error(
       "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
