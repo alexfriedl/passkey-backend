@@ -8,6 +8,7 @@ export interface IUser extends Document {
   registrationPlatform?: string;
   serverChallenge?: string;
   iosChallenge?: string;
+  clientDataHash?: string;
   createdAt?: Date;
 }
 
@@ -19,6 +20,7 @@ const UserSchema = new mongoose.Schema({
   registrationPlatform: { type: String, required: false },
   serverChallenge: { type: String, required: false },
   iosChallenge: { type: String, required: false },
+  clientDataHash: { type: String, required: false },
   createdAt: { type: Date, default: Date.now }
 });
 
