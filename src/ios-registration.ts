@@ -54,6 +54,15 @@ export async function verifyIOSRegistration(
 ): Promise<any> {
   console.log("🍎 iOS Extension Registration - Start");
   console.log("Server challenge (for audit):", serverChallenge);
+  console.log("Credential structure:", {
+    id: credential.id?.substring(0, 20) + "...",
+    rawId: credential.rawId?.substring(0, 20) + "...",
+    type: credential.type,
+    response: {
+      attestationObject: credential.response?.attestationObject?.substring(0, 20) + "...",
+      clientDataJSON: credential.response?.clientDataJSON?.substring(0, 50) + "..."
+    }
+  });
   
   try {
     // Konvertiere id und rawId in ArrayBuffer
@@ -64,8 +73,23 @@ export async function verifyIOSRegistration(
     // The "clientDataJSON" field from iOS actually contains the clientDataHash (SHA-256 of clientData)
     // We cannot extract the challenge from it because we only have the hash, not the original data.
     
-    console.log("iOS clientDataHash (sent as clientDataJSON):", credential.response.clientDataJSON);
-    console.log("This is actually the hash of the client data, not the JSON itself");
+    // Check if clientDataJSON is base64url encoded hash (iOS) or actual JSON (shouldn't happen from iOS)
+    const clientDataValue = credential.response.clientDataJSON;
+    console.log("Raw clientDataJSON value:", clientDataValue);
+    console.log("Type of clientDataJSON:", typeof clientDataValue);
+    console.log("Length of clientDataJSON:", clientDataValue?.length);
+    
+    // iOS sends base64url encoded hash (44 chars for 32 bytes)
+    const isIOSHash = typeof clientDataValue === 'string' && 
+                      clientDataValue.length < 100 && 
+                      !clientDataValue.startsWith('{');
+    
+    console.log("Detected as iOS hash:", isIOSHash);
+    
+    if (isIOSHash) {
+      console.log("iOS clientDataHash detected (base64url encoded):", clientDataValue);
+      console.log("This is the SHA-256 hash of the client data, not JSON");
+    }
     
     // For iOS extensions, we need to create a synthetic clientDataJSON for the FIDO2 library
     // since it expects JSON, not a hash. We'll use the server challenge as a placeholder.
