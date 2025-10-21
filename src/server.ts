@@ -15,6 +15,7 @@ import { connectDB } from "./mongodb";
 import { Pool } from "pg";
 import appAttestRouter from "./appattest";
 import { verifyIOSRegistration } from "./ios-registration";
+import { getChallenge } from "./challenge-store";
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
 const pool = new Pool({
@@ -269,8 +270,14 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     if (platform === "ios-extension") {
       console.log("[REGISTER/VERIFY] iOS Extension detected - using special handling");
       try {
+        // Get the stored challenge for this user
+        const challenge = getChallenge(username);
+        if (!challenge) {
+          throw new Error("Challenge not found for user");
+        }
+        
         // For iOS extensions, we need to handle the challenge differently
-        const result = await verifyIOSRegistration(credential, username, "");
+        await verifyIOSRegistration(credential, username, challenge);
         console.log("✅ iOS Extension registration verified successfully");
         return res.json({ 
           verified: true, 
