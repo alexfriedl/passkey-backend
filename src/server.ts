@@ -14,6 +14,7 @@ import path from "path";
 import { connectDB } from "./mongodb";
 import { Pool } from "pg";
 import appAttestRouter from "./appattest";
+import { verifyIOSRegistration } from "./ios-registration";
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
 const pool = new Pool({
@@ -63,7 +64,7 @@ app.post("/api/register/combined", async (req: any, res: any) => {
     console.log("\n========== COMBINED REGISTRATION START ==========");
     console.log("Timestamp:", new Date().toISOString());
     
-    const { username, passkey, appAttest } = req.body;
+    const { username, passkey, appAttest, platform } = req.body;
     
     // Validate required fields
     if (!username || !passkey || !appAttest) {
@@ -74,13 +75,30 @@ app.post("/api/register/combined", async (req: any, res: any) => {
     }
     
     console.log("Processing combined registration for:", username);
+    console.log("Platform:", platform || "web");
     
     // Step 1: Verify Passkey Registration
     console.log("\n📱 Step 1: Verifying Passkey...");
     let passkeyResult;
     try {
-      passkeyResult = await verifyRegistration(passkey.credential, username);
-      console.log("✅ Passkey verification successful");
+      if (platform === "ios-extension") {
+        console.log("🍎 iOS Extension detected - using special handling");
+        // For iOS extensions, we need to handle the challenge differently
+        // iOS generates its own challenge that we cannot override
+        console.log("Server challenge (for audit):", passkey.challenge);
+        
+        // Use iOS-specific registration handler
+        passkeyResult = await verifyIOSRegistration(
+          passkey.credential,
+          username,
+          passkey.challenge // Server challenge for audit
+        );
+        console.log("✅ iOS Passkey verification successful");
+      } else {
+        // Normal web flow - validate challenge as usual
+        passkeyResult = await verifyRegistration(passkey.credential, username);
+        console.log("✅ Passkey verification successful");
+      }
     } catch (error) {
       console.error("❌ Passkey verification failed:", error);
       return res.status(400).json({ 
