@@ -55,6 +55,9 @@ app.use(express.static(path.join(__dirname, "../public")));
 // Apple App Attest Router
 app.use("/api/appattest", appAttestRouter);
 
+// Import security config
+import { requiresAppAttest } from "./config/security-config";
+
 /**
  * 🔹 Combined Passkey + App Attest Registration
  * iOS-App sendet beide Attestations in einem Request
@@ -67,10 +70,22 @@ app.post("/api/register/combined", async (req: any, res: any) => {
     const { username, passkey, appAttest, platform } = req.body;
     
     // Validate required fields
-    if (!username || !passkey || !appAttest) {
+    if (!username || !passkey) {
       console.error("Missing required fields in combined registration");
       return res.status(400).json({ 
-        error: "Username, passkey, and appAttest data are required" 
+        error: "Username and passkey data are required" 
+      });
+    }
+    
+    // Check if App Attest is required for this user
+    const appAttestRequired = requiresAppAttest(username);
+    console.log(`App Attest required for ${username}: ${appAttestRequired}`);
+    
+    if (appAttestRequired && !appAttest) {
+      console.error("App Attest required but not provided");
+      return res.status(400).json({ 
+        error: "App Attest is required for this account",
+        requiresAppAttest: true
       });
     }
     
@@ -107,10 +122,11 @@ app.post("/api/register/combined", async (req: any, res: any) => {
       });
     }
     
-    // Step 2: Verify App Attest
-    console.log("\n🔒 Step 2: Verifying App Attest...");
-    let appAttestResult: any;
-    try {
+    // Step 2: Verify App Attest (if provided)
+    let appAttestResult: any = null;
+    if (appAttest) {
+      console.log("\n🔒 Step 2: Verifying App Attest...");
+      try {
       // Create a mock request/response to use the app attest router
       const appAttestReq = {
         body: {
@@ -149,13 +165,16 @@ app.post("/api/register/combined", async (req: any, res: any) => {
         throw new Error("App Attest verification failed");
       }
       
-      console.log("✅ App Attest verification successful");
-    } catch (error) {
-      console.error("❌ App Attest verification failed:", error);
-      return res.status(400).json({ 
-        error: "App Attest verification failed",
-        detail: error instanceof Error ? error.message : "Unknown error"
-      });
+        console.log("✅ App Attest verification successful");
+      } catch (error) {
+        console.error("❌ App Attest verification failed:", error);
+        return res.status(400).json({ 
+          error: "App Attest verification failed",
+          detail: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else {
+      console.log("ℹ️ App Attest not provided - skipping verification");
     }
     
     // Step 3: Link credentials in database (if needed)
@@ -164,7 +183,7 @@ app.post("/api/register/combined", async (req: any, res: any) => {
     // For now, both are independently stored and linked by username
     
     // Prepare combined response
-    const response = {
+    const response: any = {
       success: true,
       username,
       passkey: {
@@ -172,15 +191,19 @@ app.post("/api/register/combined", async (req: any, res: any) => {
         attestationObject: passkeyResult.request.response.attestationObject,
         clientDataJSON: passkeyResult.request.response.clientDataJSON
       },
-      appAttest: {
+      message: appAttest ? "Combined registration successful" : "Passkey registration successful"
+    };
+    
+    // Add App Attest data only if it was verified
+    if (appAttestResult) {
+      response.appAttest = {
         verified: appAttestResult.verified,
         keyId: appAttestResult.keyId,
         publicKey: appAttestResult.publicKey,
         counter: appAttestResult.counter,
         appId: appAttestResult.appId
-      },
-      message: "Combined registration successful"
-    };
+      };
+    }
     
     console.log("\n✅ COMBINED REGISTRATION SUCCESSFUL!");
     console.log("========== COMBINED REGISTRATION END ==========");
@@ -232,7 +255,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
   try {
     // console.log("[REGISTER/VERIFY] Request received:", req.body);
 
-    const { username, credential } = req.body;
+    const { username, credential, platform } = req.body;
     if (!username || !credential) {
       console.error(
         "[REGISTER/VERIFY] Fehler: Username oder Credential fehlen"
@@ -241,6 +264,16 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         .status(400)
         .json({ error: "Username und Credential sind erforderlich" });
     }
+    
+    // Skip if coming from iOS combined registration
+    if (platform === "ios-extension-combined") {
+      console.log("[REGISTER/VERIFY] Skipping - already verified in combined registration");
+      return res.json({ 
+        verified: true, 
+        message: "Already verified through combined registration" 
+      });
+    }
+    
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
