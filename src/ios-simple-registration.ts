@@ -1,5 +1,7 @@
 import * as cbor from 'cbor';
 import * as crypto from 'crypto';
+import { deleteChallenge } from './challenge-store';
+import { saveUserToDB } from './webauthn';
 
 interface IOSRegistrationRequest {
   credential: {
@@ -191,6 +193,23 @@ export async function registerIOSSimple(request: IOSRegistrationRequest): Promis
     // Store user
     users.set(request.username, user);
     console.log('User registered successfully:', request.username);
+    
+    // Also save to MongoDB for persistence
+    try {
+      await saveUserToDB({
+        username: request.username,
+        credentialId: credentialId,
+        publicKey: publicKeyPEM,
+        counter: 0
+      });
+      console.log('User saved to MongoDB');
+    } catch (dbError) {
+      console.error('MongoDB save error (non-critical):', dbError);
+      // Continue anyway - in-memory storage is working
+    }
+    
+    // Delete challenge after successful registration
+    deleteChallenge(request.username);
 
     return {
       success: true,

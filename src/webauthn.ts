@@ -151,7 +151,7 @@ export async function verifyRegistration(
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  deleteChallenge(username);
+  // Don't delete challenge yet - might need it for iOS fallback
 
   // Konvertiere id und rawId in ArrayBuffer
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
@@ -165,6 +165,9 @@ export async function verifyRegistration(
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
+    
+    // Only delete challenge after successful verification
+    deleteChallenge(username);
 
     // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
     const existingUser = await User.findOne({ username });
