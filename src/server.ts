@@ -293,7 +293,6 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         // Return success with the credential data
         res.json({ 
           success: true,
-          verified: true,
           attestationObject: credential.response.attestationObject,
           clientDataJSON: credential.response.clientDataJSON
         });
