@@ -27,6 +27,17 @@
     <div id="debugLog"></div>
 
     <script>
+      // Auto-start registration if opened from app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
+          // Auto-start registration when opened from PasskeyGuard app
+          setTimeout(() => {
+            register();
+          }, 1000);
+        }
+      });
+
       // Hilfsfunktionen zur Umwandlung
       function arrayBufferToBase64(buffer) {
         let binary = "";
@@ -58,14 +69,24 @@
 
       async function register() {
         const API_URL = "/api"; // Use relative path for local testing
-        const username = document.getElementById("username").value;
+        let username = document.getElementById("username").value;
+        
+        // Check URL parameters for username and hardware-bound flag
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('username')) {
+          username = urlParams.get('username');
+          document.getElementById("username").value = username;
+        }
+        
+        const isHardwareBound = urlParams.get('hw') === 'true';
+        
         if (!username) {
           alert("Bitte einen Benutzernamen eingeben!");
           return;
         }
         document.getElementById("status").textContent =
           "Registrierung startet…";
-        logDebug(`Registrierung gestartet für: ${username}`);
+        logDebug(`Registrierung gestartet für: ${username} (Hardware-bound: ${isHardwareBound})`);
 
         // Schritt 1: Challenge abrufen
         let res;
@@ -176,9 +197,9 @@
           logDebug(
             "Registrierung erfolgreich – starte Deeplink zurück zur App."
           );
-          // Beispiel: Erzeuge Deeplink (anpassen, falls der Server einen Token liefert)
+          // PasskeyGuard App Deeplink mit WebAuthn completion
           const token = verifyResult.token || "dummyToken";
-          const deeplink = `localkey://registration-success?token=${encodeURIComponent(
+          const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(
             token
           )}&username=${encodeURIComponent(username)}`;
           logDebug("Deeplink: " + deeplink);
