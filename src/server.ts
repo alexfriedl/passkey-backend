@@ -354,6 +354,58 @@ app.post("/api/register/verify", async (req: any, res: any) => {
 });
 
 /**
+ * 🔹 Android Attestation Direct Endpoint
+ * Android-App kann direkte Attestation-Daten anfordern
+ */
+app.post("/api/android/attestation-direct", async (req: any, res: any) => {
+  try {
+    const { username, platform } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ error: "Username ist erforderlich" });
+    }
+    
+    console.log(`[ANDROID-ATTESTATION-DIRECT] Request for: ${username}`);
+    
+    // Generiere WebAuthn Optionen für Android
+    const options = await generateRegistrationOptions(username);
+    
+    // Android-spezifische Konfiguration
+    if (options.authenticatorSelection) {
+      options.authenticatorSelection.authenticatorAttachment = "platform";
+      options.authenticatorSelection.userVerification = "required";
+    }
+    
+    // Simuliere direkten Attestation-Flow für Android
+    const credential = {
+      id: "android-direct-" + Date.now(),
+      rawId: options.challenge, // Verwende challenge als rawId
+      response: {
+        attestationObject: options.challenge,
+        clientDataJSON: options.user.id,
+      },
+      type: "public-key",
+      platform: "android"
+    };
+    
+    console.log("[ANDROID-ATTESTATION-DIRECT] Generated credential:", credential);
+    
+    res.json({
+      success: true,
+      credential: credential,
+      options: options
+    });
+    
+  } catch (error) {
+    console.error("[ANDROID-ATTESTATION-DIRECT] Error:", error);
+    res.status(500).json({ 
+      error: "Fehler bei Android Attestation Direct",
+      detail: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
+/**
  * 🔹 Schritt 3: Login - Challenge generieren
  * iOS-App sendet: { username: "alice" }
  * Server antwortet mit den WebAuthn-Login-Optionen

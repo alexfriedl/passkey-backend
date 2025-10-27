@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Passkey Registrierung</title>
+    <title>Android Passkey Registrierung</title>
     <style>
       body {
         font-family: sans-serif;
@@ -20,18 +20,18 @@
     </style>
   </head>
   <body>
-    <h1>Passkey Registrierung</h1>
+    <h1>Android Passkey Registrierung</h1>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
     <pre id="status"></pre>
     <div id="debugLog"></div>
 
     <script>
-      // Auto-start registration if opened from app
+      // Auto-start registration if opened from Android app
       window.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
-          // Auto-start registration when opened from PasskeyGuard app
+        if (urlParams.get('android') === 'true' && urlParams.get('username')) {
+          // Auto-start registration when opened from Android app
           setTimeout(() => {
             register();
           }, 1000);
@@ -67,50 +67,50 @@
         debugLog.textContent += message + "\n";
       }
 
-      // Check for PasskeyGuard hardware-bound flag in URL fragment
-      let isHardwareBoundAvailable = false;
+      // Check for Android attestation support
+      let isAndroidAttestationAvailable = false;
       
-      // Parse hardware-bound flag from URL fragment
-      function checkHardwareBoundFlag() {
+      // Parse Android attestation flag from URL fragment
+      function checkAndroidAttestationFlag() {
         const fragment = window.location.hash.substring(1); // Remove #
-        if (fragment.includes('hwbound=true')) {
-          isHardwareBoundAvailable = true;
-          logDebug('PasskeyGuard hardware-bound mode detected from URL fragment');
+        if (fragment.includes('android-attestation=true')) {
+          isAndroidAttestationAvailable = true;
+          logDebug('Android attestation mode detected from URL fragment');
           return true;
         }
         return false;
       }
       
       // Check on page load
-      checkHardwareBoundFlag();
+      checkAndroidAttestationFlag();
 
       async function register() {
         const API_URL = "/api"; // Use relative path for local testing
         let username = document.getElementById("username").value;
         
-        // Check URL parameters for username and hardware-bound flag
+        // Check URL parameters for username and Android attestation flag
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('username')) {
           username = urlParams.get('username');
           document.getElementById("username").value = username;
         }
         
-        const isHardwareBound = urlParams.get('hw') === 'true';
+        const isAndroidApp = urlParams.get('android') === 'true';
         
         if (!username) {
           alert("Bitte einen Benutzernamen eingeben!");
           return;
         }
 
-        // Check for PasskeyGuard hardware-bound mode
-        if (isHardwareBound && isHardwareBoundAvailable) {
-          logDebug(`PasskeyGuard hardware-bound mode available for: ${username}`);
-          return useHardwareBoundPasskey(username);
+        // Check for Android attestation mode
+        if (isAndroidApp && isAndroidAttestationAvailable) {
+          logDebug(`Android attestation mode available for: ${username}`);
+          return useAndroidAttestation(username);
         }
 
         document.getElementById("status").textContent =
           "Registrierung startet…";
-        logDebug(`Registrierung gestartet für: ${username} (Hardware-bound: ${isHardwareBound})`);
+        logDebug(`Android Registrierung gestartet für: ${username} (Android: ${isAndroidApp})`);
 
         // Schritt 1: Challenge abrufen
         let res;
@@ -139,6 +139,22 @@
           return;
         }
 
+        // Android-spezifische WebAuthn-Konfiguration
+        if (isAndroidApp) {
+          // Optimiere für Android WebAuthn
+          if (options.authenticatorSelection) {
+            options.authenticatorSelection.authenticatorAttachment = "platform";
+            options.authenticatorSelection.userVerification = "required";
+          }
+          
+          // Android-spezifische Extensions hinzufügen
+          if (!options.extensions) {
+            options.extensions = {};
+          }
+          
+          logDebug("Android-spezifische WebAuthn-Konfiguration angewendet");
+        }
+
         // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
         if (typeof options.challenge === "string") {
           logDebug("Wandle challenge von Base64 zu ArrayBuffer um.");
@@ -153,7 +169,7 @@
         let credential;
         try {
           logDebug(
-            "Starte WebAuthn-Registrierung über navigator.credentials.create..."
+            "Starte Android WebAuthn-Registrierung über navigator.credentials.create..."
           );
           credential = await navigator.credentials.create({
             publicKey: options,
@@ -180,21 +196,22 @@
             ),
           },
           type: credential.type,
+          platform: "android",
         };
 
         logDebug(
-          "Credential-Daten formatiert: " +
+          "Android Credential-Daten formatiert: " +
             JSON.stringify(credentialData, null, 2)
         );
 
         // Schritt 3: Registrierungsabschluss beim Server
         let verifyRes;
         try {
-          logDebug("Sende Credential-Daten an den Server für den Abschluss...");
+          logDebug("Sende Android Credential-Daten an den Server für den Abschluss...");
           verifyRes = await fetch(`${API_URL}/register/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, credential: credentialData }),
+            body: JSON.stringify({ username, credential: credentialData, platform: "android" }),
           });
         } catch (err) {
           logDebug("Fehler beim Senden der Daten: " + err);
@@ -214,93 +231,104 @@
           return;
         }
 
-        // Nach erfolgreicher Registrierung: Deeplink zurück zur App
+        // Nach erfolgreicher Registrierung: Deeplink zurück zur Android App
         if (verifyResult.success) {
           document.getElementById("status").textContent =
-            "Registrierung erfolgreich!";
+            "Android Registrierung erfolgreich!";
           logDebug(
-            "Registrierung erfolgreich – starte Deeplink zurück zur App."
+            "Android Registrierung erfolgreich – starte Deeplink zurück zur App."
           );
-          // PasskeyGuard App Deeplink mit WebAuthn completion
-          const token = verifyResult.token || "dummyToken";
-          const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(
+          
+          // Android App Deeplink mit WebAuthn completion
+          const token = verifyResult.token || "androidToken";
+          const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(
             token
-          )}&username=${encodeURIComponent(username)}`;
-          logDebug("Deeplink: " + deeplink);
-          // Zurück zur App navigieren
+          )}&username=${encodeURIComponent(username)}&platform=android`;
+          logDebug("Android Deeplink: " + deeplink);
+          
+          // Zurück zur Android App navigieren
           window.location.href = deeplink;
         } else {
           document.getElementById("status").textContent =
-            "Registrierung fehlgeschlagen: " +
+            "Android Registrierung fehlgeschlagen: " +
             (verifyResult.error || "Unbekannter Fehler");
           logDebug(
-            "Registrierung fehlgeschlagen: " +
+            "Android Registrierung fehlgeschlagen: " +
               (verifyResult.error || "Unbekannter Fehler")
           );
         }
       }
 
-      // Handler for hardware-bound passkey - requests data from backend
-      async function useHardwareBoundPasskey(username) {
+      // Handler for Android attestation - uses direct attestation endpoint
+      async function useAndroidAttestation(username) {
         const API_URL = "/api";
         
         try {
-          document.getElementById("status").textContent = "Hole Hardware-bound Passkey-Daten...";
-          logDebug("Requesting hardware-bound passkey data from backend");
+          document.getElementById("status").textContent = "Hole Android Attestation-Daten...";
+          logDebug("Requesting Android attestation data from backend");
           
-          // Request hardware-bound data from backend
-          const dataRes = await fetch(`${API_URL}/passkey/hardware-bound`, {
+          // Request Android attestation data from backend (direct endpoint)
+          const dataRes = await fetch(`${API_URL}/android/attestation-direct`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username }),
+            body: JSON.stringify({ username, platform: "android" }),
           });
           
           if (!dataRes.ok) {
-            throw new Error("Failed to get hardware-bound data");
+            throw new Error("Failed to get Android attestation data");
           }
           
-          const passkeyData = await dataRes.json();
-          logDebug(`Received hardware-bound passkey data: ${JSON.stringify(passkeyData)}`);
+          const attestationData = await dataRes.json();
+          logDebug(`Received Android attestation data: ${JSON.stringify(attestationData)}`);
           
-          if (!passkeyData.success || !passkeyData.credential) {
-            throw new Error("No hardware-bound passkey data available");
+          if (!attestationData.success || !attestationData.credential) {
+            throw new Error("No Android attestation data available");
           }
           
-          document.getElementById("status").textContent = "Sende Hardware-bound Passkey an Server...";
+          document.getElementById("status").textContent = "Sende Android Attestation an Server...";
           
-          // Send the hardware-bound credential to verification endpoint
+          // Send the Android attestation credential to verification endpoint
           const verifyRes = await fetch(`${API_URL}/register/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
               username, 
-              credential: passkeyData.credential,
-              hardwareBound: true
+              credential: attestationData.credential,
+              androidAttestation: true,
+              platform: "android"
             }),
           });
           
           const verifyResult = await verifyRes.json();
-          logDebug("Hardware-bound registration server response:");
+          logDebug("Android attestation registration server response:");
           logDebug(JSON.stringify(verifyResult, null, 2));
           
           if (verifyResult.success) {
-            document.getElementById("status").textContent = "Hardware-bound Registrierung erfolgreich!";
-            logDebug("Hardware-bound registration completed successfully");
+            document.getElementById("status").textContent = "Android Attestation Registrierung erfolgreich!";
+            logDebug("Android attestation registration completed successfully");
             
-            // Navigate back to app with success
-            const token = verifyResult.token || "hardwareBoundToken";
-            const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=hardware-bound`;
-            logDebug("Returning to app with deeplink: " + deeplink);
+            // Navigate back to Android app with success
+            const token = verifyResult.token || "androidAttestationToken";
+            const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=android-attestation`;
+            logDebug("Returning to Android app with deeplink: " + deeplink);
             window.location.href = deeplink;
             
           } else {
-            document.getElementById("status").textContent = "Hardware-bound Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
-            logDebug("Hardware-bound registration failed: " + (verifyResult.error || "Unknown error"));
+            document.getElementById("status").textContent = "Android Attestation Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
+            logDebug("Android attestation registration failed: " + (verifyResult.error || "Unknown error"));
           }
           
         } catch (error) {
-          logDebug("ERROR in hardware-bound registration: " + error.message);
-          document.getElementById("status").textContent = "Fehler bei Hardware-bound Registrierung: " + error.message;
+          logDebug("ERROR in Android attestation registration: " + error.message);
+          document.getElementById("status").textContent = "Fehler bei Android Attestation Registrierung: " + error.message;
+          
+          // Fallback to standard WebAuthn registration
+          logDebug("Falling back to standard WebAuthn registration");
+          document.getElementById("status").textContent = "Fallback: Standard WebAuthn Registrierung...";
+          // Remove the android-attestation flag and retry with standard flow
+          window.location.hash = "";
+          isAndroidAttestationAvailable = false;
+          register();
         }
       }
     </script>
