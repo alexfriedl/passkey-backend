@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <title>WebAuthn Register</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 20px;
+      }
+      label,
+      input {
+        font-size: 1.2em;
+      }
+      button {
+        font-size: 1.2em;
+        padding: 8px 12px;
+        margin-top: 10px;
+      }
+      pre {
+        background-color: #f4f4f4;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>WebAuthn Register</h1>
+    <form id="registrationForm">
+      <label for="username">Username:</label>
+      <input type="text" id="username" name="username" required />
+      <br />
+      <button type="submit">Register</button>
+    </form>
+
+    <pre id="log"></pre>
+
+    <script>
+      const logElement = document.getElementById("log");
+      function debugLog(msg) {
+        console.log(msg);
+        if (logElement) {
+          logElement.textContent += msg + "\n";
+        }
+      }
+
+      // Hilfsfunktion: Base64URL zu ArrayBuffer
+      function base64UrlToBuffer(base64UrlString) {
+        let base64 = base64UrlString.replace(/-/g, "+").replace(/_/g, "/");
+        while (base64.length % 4) {
+          base64 += "=";
+        }
+        const binary = atob(base64);
+        const buffer = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          buffer[i] = binary.charCodeAt(i);
+        }
+        return buffer;
+      }
+
+      // Hilfsfunktion: Konvertiert Credential-Objekte (inkl. ArrayBuffer) in ein JSON-geeignetes Format
+      function publicKeyCredentialToJSON(pubKeyCred) {
+        // Falls es ein ArrayBuffer ist, konvertieren wir es in einen Base64URL-codierten String
+        if (pubKeyCred instanceof ArrayBuffer) {
+          return base64UrlEncode(new Uint8Array(pubKeyCred));
+        }
+        // Falls es ein Array ist, verarbeite alle Elemente
+        else if (Array.isArray(pubKeyCred)) {
+          return pubKeyCred.map((item) => publicKeyCredentialToJSON(item));
+        }
+        // Wenn es eine echte PublicKeyCredential-Instanz ist, rufe toJSON() auf
+        else if (
+          typeof PublicKeyCredential !== "undefined" &&
+          pubKeyCred instanceof PublicKeyCredential &&
+          typeof pubKeyCred.toJSON === "function"
+        ) {
+          return pubKeyCred.toJSON();
+        }
+        // Falls es ein Objekt ist, konvertiere rekursiv alle Werte
+        else if (pubKeyCred && typeof pubKeyCred === "object") {
+          const obj = {};
+          for (const key in pubKeyCred) {
+            if (pubKeyCred.hasOwnProperty(key)) {
+              obj[key] = publicKeyCredentialToJSON(pubKeyCred[key]);
+            }
+          }
+          return obj;
+        }
+        // Ansonsten den Wert unverändert zurückgeben
+        return pubKeyCred;
+      }
+
+      function base64UrlEncode(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        let base64 = window.btoa(binary);
+        // Ersetze URL-ungültige Zeichen
+        return base64
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      document
+        .getElementById("registrationForm")
+        .addEventListener("submit", async function (event) {
+          event.preventDefault();
+          const username = document.getElementById("username").value.trim();
+          if (!username) {
+            debugLog("Bitte einen gültigen Benutzernamen eingeben.");
+            return;
+          }
+          debugLog(`[Log] Registrierung gestartet für: ${username}`);
+
+          try {
+            debugLog("[Log] Hole Challenge vom Server…");
+            // Passe die URL zum Challenge-Endpoint deines RP-Servers an:
+            const response = await fetch("/api/register", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ username }),
+            });
+            const options = await response.json();
+            debugLog("[Log] Original Challenge (Base64URL): " + options.challenge);
+            // complete nachricht an user zurückgeben
+            debugLog("[Log] Successfully received challenge from server");
+            // debugLog(
+            //   "[Log] Empfangene Optionen: " + JSON.stringify(options, null, 2)
+            // );
+
+            // Konvertiere die Challenge und user.id von Base64 zu ArrayBuffer
+            options.challenge = base64UrlToBuffer(options.challenge);
+            if (options.user && options.user.id) {
+              options.user.id = base64UrlToBuffer(options.user.id);
+              // debugLog("[Log] Wandle user.id von Base64 zu ArrayBuffer um.");
+            }
+            // debugLog("[Log] Wandle challenge von Base64 zu ArrayBuffer um.");
+            // debugLog("[Log] Challenge als ArrayBuffer: " + options.challenge);
+
+
+            // debugLog(
+            //   "[Log] Starte WebAuthn-Registrierung über navigator.credentials.create..."
+            // );
+            const credential = await navigator.credentials.create({
+              publicKey: options,
+            });
+            // debugLog(
+            //   "[Log] Credential erstellt: " + JSON.stringify(credential)
+            // );
+
+            // Konvertiere das Credential in ein JSON-geeignetes Format
+            const credentialJSON = publicKeyCredentialToJSON(credential);
+            // debugLog(
+            //   "[Log] Credential JSON: " +
+            //     JSON.stringify(credentialJSON, null, 2)
+            // );
+
+            // Erstelle das finale Registrierungsantwort-Objekt, das den Benutzernamen und das Credential enthält
+            const registrationResponse = {
+              username: username,
+              credential: credentialJSON,
+            };
+
+            // Sende das Credential an den RP-Server zur Verifizierung
+            // debugLog(
+            //  "[Log] Sende Registrierungsantwort an /api/register/verify..."
+            //);
+            const verifyResponse = await fetch("/api/register/verify", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify(registrationResponse),
+            });
+            const verifyResult = await verifyResponse.json();
+            // debugLog(
+            //   "[Log] Registrierungsantwort empfangen: " +
+            //     JSON.stringify(verifyResult, null, 2)
+            // );
+          } catch (error) {
+            //debugLog("[ERROR] " + error);
+            //console.error(error);
+          }
+        });
+    </script>
+  </body>
+</html>

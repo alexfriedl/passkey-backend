@@ -3,16 +3,21 @@
     "apps": [],
     "details": [
       {
-        "appID": "K6WRJB8J4N.localkeyboys.LocalKey",
+        "appID": "9543Y8GMF6.com.merckgroup.passkeyguard.dev",
         "paths": [
           "/register",
-          "/register/*"
+          "/register/*",
+          "/login",
+          "/login/*"
         ]
       }
     ]
   },
   "webcredentials": {
     "apps": [
+      "9543Y8GMF6.com.merckgroup.passkeyguard.dev",
+      "9543Y8GMF6.com.merckgroup.passkeyguard.dev.autofill",
+      "K6WRJB8J4N.localkeyboys.LocalKey",
       "K6WRJB8J4N.localkeyboys.LocalKey",
       "K6WRJB8J4N.localkeyboys.LocalKey.AutoFillCredentialProvider"
     ]

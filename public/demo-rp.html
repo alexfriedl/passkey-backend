@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Demo RP - PasskeyGuard Integration</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 40px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .step {
+        margin: 20px 0;
+        padding: 15px;
+        border-left: 4px solid #007bff;
+        background: #f8f9fa;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .deeplink-button {
+        background: #28a745;
+      }
+      .deeplink-button:hover {
+        background: #1e7e34;
+      }
+      #status {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      .highlight {
+        background: #fff3cd;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 15px 0;
+        border-left: 4px solid #ffc107;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🔐 Demo RP - PasskeyGuard Integration</h1>
+      
+      <div class="highlight">
+        <strong>Hardware-bound Passkey Registration Demo</strong><br>
+        Diese Demo zeigt, wie eine RP-Website die PasskeyGuard App für hardware-gebundene Passkey-Registrierung verwenden kann.
+      </div>
+
+      <div class="step">
+        <h3>Schritt 1: Standard WebAuthn Registrierung</h3>
+        <p>Normale Passkey-Registrierung ohne PasskeyGuard App:</p>
+        <input type="text" id="username" placeholder="Benutzername eingeben..." />
+        <button onclick="standardRegister()">Standard Registrierung</button>
+      </div>
+
+      <div class="step">
+        <h3>Schritt 2: PasskeyGuard Hardware-bound Registrierung</h3>
+        <p>Registrierung mit DCAppAttest Hardware-Integrity Proof:</p>
+        <input type="text" id="username-hw" placeholder="Benutzername eingeben..." />
+        <button class="deeplink-button" onclick="hardwareBoundRegister()">
+          🔒 Hardware-bound Registrierung
+        </button>
+      </div>
+
+      <div id="status"></div>
+
+      <div class="step">
+        <h3>Flow Erklärung</h3>
+        <ol>
+          <li><strong>RP Website</strong> generiert Deeplink zur PasskeyGuard App</li>
+          <li><strong>PasskeyGuard App</strong> öffnet RP Website in SFSafariViewController</li>
+          <li><strong>WebAuthn Registrierung</strong> läuft im Main App Context (nicht Extension)</li>
+          <li><strong>DCAppAttest</strong> beweist Hardware-Integrität der App</li>
+          <li><strong>Deeplink zurück</strong> zur App nach erfolgreicher Registrierung</li>
+        </ol>
+      </div>
+    </div>
+
+    <script>
+      function updateStatus(message, type = 'info') {
+        const status = document.getElementById('status');
+        const colors = {
+          info: '#d1ecf1',
+          success: '#d4edda',
+          error: '#f8d7da',
+          warning: '#fff3cd'
+        };
+        status.style.background = colors[type] || colors.info;
+        status.innerHTML = message;
+      }
+
+      async function standardRegister() {
+        const username = document.getElementById('username').value;
+        if (!username) {
+          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        updateStatus('🔄 Standard WebAuthn Registrierung läuft...', 'info');
+        
+        // Redirect to register page with username
+        window.location.href = `/register.html?username=${encodeURIComponent(username)}`;
+      }
+
+      function hardwareBoundRegister() {
+        const username = document.getElementById('username-hw').value;
+        if (!username) {
+          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        updateStatus('🔒 Starte Hardware-bound Registrierung...', 'info');
+
+        // Create deeplink to PasskeyGuard app with RP origin
+        const currentOrigin = window.location.origin;
+        const registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true`;
+        
+        // Deeplink to PasskeyGuard app
+        const deeplink = `passkeyguard-webauthn://?origin=${encodeURIComponent(registerUrl)}`;
+        
+        updateStatus(`
+          🚀 <strong>Deeplink generiert:</strong><br>
+          <code>${deeplink}</code><br><br>
+          <em>PasskeyGuard App wird geöffnet...</em>
+        `, 'success');
+
+        // Try to open the app
+        try {
+          window.location.href = deeplink;
+        } catch (error) {
+          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. App installiert?', 'error');
+        }
+      }
+
+      // Check if we came back from the app
+      window.addEventListener('focus', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('returned') === 'true') {
+          updateStatus('✅ Zurück von PasskeyGuard App! Prüfe Registrierungsstatus...', 'success');
+        }
+      });
+
+      // Initial status
+      updateStatus('📱 Bereit für Passkey-Registrierung', 'info');
+    </script>
+  </body>
+</html>

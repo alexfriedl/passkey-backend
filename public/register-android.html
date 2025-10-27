@@ -1,0 +1,381 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Android Passkey Registrierung</title>
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #debugLog {
+        border: 1px solid #ccc;
+        padding: 0.5em;
+        background: #f7f7f7;
+        white-space: pre-wrap;
+        margin-top: 1em;
+        max-height: 300px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Android Passkey Registrierung</h1>
+    <input type="text" id="username" placeholder="Benutzername" />
+    <button onclick="register()">Registrieren</button>
+    <pre id="status"></pre>
+    <div id="debugLog"></div>
+
+    <script>
+      // Auto-start registration if opened from Android app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('android') === 'true' && urlParams.get('username')) {
+          // Auto-start registration when opened from Android app
+          setTimeout(() => {
+            register();
+          }, 1000);
+        }
+      });
+
+      // Hilfsfunktionen zur Umwandlung
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      // Debugging: Funktion, die Nachrichten sowohl in der Konsole als auch im Markup ausgibt
+      function logDebug(message) {
+        console.log(message);
+        const debugLog = document.getElementById("debugLog");
+        debugLog.textContent += message + "\n";
+      }
+
+      // Check for Android attestation support
+      let isAndroidAttestationAvailable = false;
+      
+      // Parse Android attestation flag from URL fragment
+      function checkAndroidAttestationFlag() {
+        const fragment = window.location.hash.substring(1); // Remove #
+        if (fragment.includes('android-attestation=true')) {
+          isAndroidAttestationAvailable = true;
+          logDebug('Android attestation mode detected from URL fragment');
+          return true;
+        }
+        return false;
+      }
+      
+      // Check on page load
+      checkAndroidAttestationFlag();
+
+      async function register() {
+        const API_URL = "/api"; // Use relative path for local testing
+        let username = document.getElementById("username").value;
+        
+        // Check URL parameters for username and Android attestation flag
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('username')) {
+          username = urlParams.get('username');
+          document.getElementById("username").value = username;
+        }
+        
+        const isAndroidApp = urlParams.get('android') === 'true';
+        
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+
+        // Check for Android attestation mode
+        if (isAndroidApp && isAndroidAttestationAvailable) {
+          logDebug(`Android attestation mode available for: ${username}`);
+          return useAndroidAttestation(username);
+        }
+
+        document.getElementById("status").textContent =
+          "Registrierung startet…";
+        logDebug(`Android Registrierung gestartet für: ${username} (Android: ${isAndroidApp})`);
+
+        // Schritt 1: Challenge abrufen
+        let res;
+        try {
+          logDebug("Hole Challenge vom Server…");
+          res = await fetch(`${API_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Abrufen der Challenge: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Abrufen der Challenge: " + err;
+          return;
+        }
+
+        let options;
+        try {
+          options = await res.json();
+          logDebug("Empfangene Optionen: " + JSON.stringify(options, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Optionen: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Optionen: " + err;
+          return;
+        }
+
+        // Android-spezifische WebAuthn-Konfiguration
+        if (isAndroidApp) {
+          // Optimiere für Android WebAuthn
+          if (options.authenticatorSelection) {
+            options.authenticatorSelection.authenticatorAttachment = "platform";
+            options.authenticatorSelection.userVerification = "required";
+          }
+          
+          // Android-spezifische Extensions hinzufügen
+          if (!options.extensions) {
+            options.extensions = {};
+          }
+          
+          logDebug("Android-spezifische WebAuthn-Konfiguration angewendet");
+        }
+
+        // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
+        if (typeof options.challenge === "string") {
+          logDebug("Wandle challenge von Base64 zu ArrayBuffer um.");
+          options.challenge = base64ToArrayBuffer(options.challenge);
+        }
+        if (typeof options.user.id === "string") {
+          logDebug("Wandle user.id von Base64 zu ArrayBuffer um.");
+          options.user.id = base64ToArrayBuffer(options.user.id);
+        }
+
+        // Schritt 2: Passkey-Erstellung via WebAuthn
+        let credential;
+        try {
+          logDebug(
+            "Starte Android WebAuthn-Registrierung über navigator.credentials.create..."
+          );
+          credential = await navigator.credentials.create({
+            publicKey: options,
+          });
+          logDebug(
+            "Credential erfolgreich erstellt: " + JSON.stringify(credential)
+          );
+        } catch (err) {
+          logDebug("Fehler bei credential.create: " + err);
+          document.getElementById("status").textContent =
+            "Fehler bei credential.create: " + err;
+          return;
+        }
+
+        const credentialData = {
+          id: credential.id,
+          rawId: arrayBufferToBase64(credential.rawId),
+          response: {
+            attestationObject: arrayBufferToBase64(
+              credential.response.attestationObject
+            ),
+            clientDataJSON: arrayBufferToBase64(
+              credential.response.clientDataJSON
+            ),
+          },
+          type: credential.type,
+          platform: "android",
+        };
+
+        logDebug(
+          "Android Credential-Daten formatiert: " +
+            JSON.stringify(credentialData, null, 2)
+        );
+
+        // Schritt 3: Registrierungsabschluss beim Server
+        let verifyRes;
+        try {
+          logDebug("Sende Android Credential-Daten an den Server für den Abschluss...");
+          verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, credential: credentialData, platform: "android" }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Senden der Daten: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Senden der Daten: " + err;
+          return;
+        }
+
+        let verifyResult;
+        try {
+          verifyResult = await verifyRes.json();
+          logDebug("Serverantwort: " + JSON.stringify(verifyResult, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Serverantwort: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Serverantwort: " + err;
+          return;
+        }
+
+        // Nach erfolgreicher Registrierung: Deeplink zurück zur Android App
+        if (verifyResult.success) {
+          document.getElementById("status").textContent =
+            "Android Registrierung erfolgreich!";
+          logDebug(
+            "Android Registrierung erfolgreich – starte Deeplink zurück zur App."
+          );
+          
+          // Android App Deeplink mit WebAuthn completion
+          const token = verifyResult.token || "androidToken";
+          const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(
+            token
+          )}&username=${encodeURIComponent(username)}&platform=android`;
+          logDebug("Android Deeplink: " + deeplink);
+          
+          // Zurück zur Android App navigieren
+          window.location.href = deeplink;
+        } else {
+          document.getElementById("status").textContent =
+            "Android Registrierung fehlgeschlagen: " +
+            (verifyResult.error || "Unbekannter Fehler");
+          logDebug(
+            "Android Registrierung fehlgeschlagen: " +
+              (verifyResult.error || "Unbekannter Fehler")
+          );
+        }
+      }
+
+      // Handler for Android attestation - uses direct attestation endpoint
+      async function useAndroidAttestation(username) {
+        const API_URL = "/api";
+        
+        try {
+          document.getElementById("status").textContent = "Hole Android Direct Attestation Options...";
+          logDebug("Requesting Android direct attestation options from backend");
+          
+          // Request Android direct attestation options from backend
+          const optionsRes = await fetch(`${API_URL}/android/attestation-direct`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, platform: "android" }),
+          });
+          
+          if (!optionsRes.ok) {
+            throw new Error("Failed to get Android direct attestation options");
+          }
+          
+          const attestationData = await optionsRes.json();
+          logDebug(`Received Android direct attestation options: ${JSON.stringify(attestationData)}`);
+          
+          if (!attestationData.success || !attestationData.options) {
+            throw new Error("No Android direct attestation options available");
+          }
+          
+          const options = attestationData.options;
+          
+          // Verify attestation is set to direct
+          logDebug(`Attestation mode: ${options.attestation}`);
+          if (options.attestation !== "direct") {
+            logDebug("Warning: Attestation is not set to 'direct'");
+          }
+          
+          // Convert challenge and user.id to ArrayBuffer
+          if (typeof options.challenge === "string") {
+            logDebug("Converting challenge from Base64 to ArrayBuffer.");
+            options.challenge = base64ToArrayBuffer(options.challenge);
+          }
+          if (typeof options.user.id === "string") {
+            logDebug("Converting user.id from Base64 to ArrayBuffer.");
+            options.user.id = base64ToArrayBuffer(options.user.id);
+          }
+          
+          document.getElementById("status").textContent = "Erstelle Android Direct Attestation Credential...";
+          
+          // Create credential with direct attestation
+          let credential;
+          try {
+            logDebug("Starting Android WebAuthn registration with direct attestation...");
+            credential = await navigator.credentials.create({
+              publicKey: options,
+            });
+            logDebug("Android direct attestation credential created successfully: " + JSON.stringify(credential));
+          } catch (err) {
+            logDebug("Error creating direct attestation credential: " + err);
+            throw new Error("Failed to create direct attestation credential: " + err);
+          }
+          
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              attestationObject: arrayBufferToBase64(credential.response.attestationObject),
+              clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+            },
+            type: credential.type,
+            platform: "android",
+            attestation: "direct"
+          };
+          
+          document.getElementById("status").textContent = "Sende Android Direct Attestation an Server...";
+          
+          // Send the Android direct attestation credential to verification endpoint
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              username, 
+              credential: credentialData,
+              androidAttestation: true,
+              platform: "android"
+            }),
+          });
+          
+          const verifyResult = await verifyRes.json();
+          logDebug("Android direct attestation registration server response:");
+          logDebug(JSON.stringify(verifyResult, null, 2));
+          
+          if (verifyResult.success) {
+            document.getElementById("status").textContent = "Android Direct Attestation Registrierung erfolgreich!";
+            logDebug("Android direct attestation registration completed successfully");
+            
+            // Navigate back to Android app with success
+            const token = verifyResult.token || "androidDirectAttestationToken";
+            const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=android-direct-attestation`;
+            logDebug("Returning to Android app with deeplink: " + deeplink);
+            window.location.href = deeplink;
+            
+          } else {
+            document.getElementById("status").textContent = "Android Direct Attestation Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
+            logDebug("Android direct attestation registration failed: " + (verifyResult.error || "Unknown error"));
+          }
+          
+        } catch (error) {
+          logDebug("ERROR in Android direct attestation registration: " + error.message);
+          document.getElementById("status").textContent = "Fehler bei Android Direct Attestation Registrierung: " + error.message;
+          
+          // Fallback to standard WebAuthn registration
+          logDebug("Falling back to standard WebAuthn registration");
+          document.getElementById("status").textContent = "Fallback: Standard WebAuthn Registrierung...";
+          // Remove the android-attestation flag and retry with standard flow
+          window.location.hash = "";
+          isAndroidAttestationAvailable = false;
+          register();
+        }
+      }
+    </script>
+  </body>
+</html>

@@ -1,152 +1,300 @@
-import { Fido2Lib } from "fido2-lib";
+import { Fido2AttestationResult, Fido2Lib } from "fido2-lib";
 import {
   storeChallenge,
   getChallenge,
   deleteChallenge,
 } from "./challenge-store";
-import { arrayBufferToBase64Url, base64UrlToArrayBuffer } from "./conversion";
-import { randomBytes } from "crypto";
+import { createPublicKey, randomBytes } from "crypto";
+import { createHash } from "crypto";
+import cbor from "cbor";
+import User, { IUser } from "./models/User";
 
-const rpId = "www.appsprint.de";
-const fido2 = new Fido2Lib({
-  rpId,
-  rpName: "LocalKeyApp",
-  challengeSize: 32,
-  attestation: "none", // 🔥 Secure Enclave Attestation ERZWINGEN "direct" / Native iOS Integration erlaubt nur "non" aus Datenschutzrechtlichen Gründen
-  cryptoParams: [-7], // ECDSA P-256 (Secure Enclave nutzt diesen Standard)
-  authenticatorAttachment: "platform", // 🔥 Nur interner authenticator (keine USB/NFC/BLE)
-  timeout: 60000, // 60 Sekunden Timeout für WebAuthn-Anfragen
-});
+function arrayBufferToBase64(buffer: ArrayBuffer) {
+  return Buffer.from(new Uint8Array(buffer)).toString('base64');
+}
+
+
+// --- Funktionen zur User-Verwaltung in MongoDB --- //
 
 /**
- * Attestation validieren (Nur Apple Secure Enclave)
+ * Lädt alle registrierten User aus der Datenbank.
+ * @returns Promise, das ein Array von Usern zurückgibt.
  */
-// TODO: fmt apple prüfen
-function validateAttestation(attestationObject: any) {
-  console.log("🔐 Attestation-Objekt:", attestationObject);
-  // Falls attestationObject eine Map ist, benutze .get("fmt")
-  const fmt =
-    attestationObject instanceof Map
-      ? attestationObject.get("fmt")
-      : attestationObject.fmt;
-  console.log("fmt:", fmt);
-  if (!fmt || (fmt !== "apple" && fmt !== "none")) {
-    throw new Error(
-      "Ungültige Attestation: Nur Apple Secure Enclave wird akzeptiert."
-    );
+export async function loadUsersFromDB(): Promise<IUser[]> {
+  try {
+    const users = await User.find({});
+    console.log("Geladene User aus der DB:", users);
+    return users;
+  } catch (error) {
+    console.error("Fehler beim Laden der User-Daten aus der DB:", error);
+    return [];
   }
 }
 
 /**
+ * Speichert einen neuen User in der Datenbank.
+ * @param userData - Die Daten des Users (username, credentialId, publicKey, counter)
+ * @returns Promise, das den gespeicherten User zurückgibt.
+ */
+export async function saveUserToDB(userData: Partial<IUser>): Promise<IUser> {
+  try {
+    const newUser = new User(userData);
+    const savedUser = await newUser.save();
+    console.log("Neuer User in der DB gespeichert:", savedUser);
+    return savedUser;
+  } catch (error) {
+    console.error("Fehler beim Speichern des Users in der DB:", error);
+    throw error;
+  }
+}
+
+/**
+ * Aktualisiert den Counter eines registrierten Users in der Datenbank.
+ * @param username - Der Benutzername des Users
+ * @param newCounter - Der neue Counterwert
+ * @returns Promise, das den aktualisierten User zurückgibt (oder null, falls nicht gefunden).
+ */
+export async function updateUserCounter(
+  username: string,
+  newCounter: number
+): Promise<IUser | null> {
+  try {
+    const updatedUser = await User.findOneAndUpdate(
+      { username },
+      { counter: newCounter },
+      { new: true }
+    );
+    console.log(`Counter für ${username} aktualisiert:`, updatedUser);
+    return updatedUser;
+  } catch (error) {
+    console.error(
+      `Fehler beim Aktualisieren des Counters für ${username}:`,
+      error
+    );
+    throw error;
+  }
+}
+
+// --- fido2-lib Konfiguration ---
+const rpId = process.env.RPID || "localhost";
+console.log("🔧 WebAuthn rpId configured as:", rpId);
+const fido2 = new Fido2Lib({
+  timeout: 60000,
+  rpId: rpId,
+  rpName: "LocalKeyApp",
+  // rpIcon: optional, falls benötigt
+  challengeSize: 32,
+  authenticatorAttachment: "platform", // Plattform-Authenticator (z. B. Secure Enclave)
+  authenticatorRequireResidentKey: false, // Erzwinge keinen resident key, damit iOS den Standard-Flow nutzt
+  authenticatorUserVerification: "required", // Der Nutzer muss sich verifizieren (z. B. via Face ID/Touch ID)
+  attestation: "none", // Privacy-first: iOS liefert meist 'none' Format
+  cryptoParams: [-7], // ES256 (ECDSA P-256)
+});
+
+// Android Direct Attestation Configuration
+const fido2AndroidDirect = new Fido2Lib({
+  timeout: 60000,
+  rpId: rpId,
+  rpName: "LocalKeyApp",
+  challengeSize: 32,
+  authenticatorAttachment: "platform",
+  authenticatorRequireResidentKey: false,
+  authenticatorUserVerification: "required",
+  attestation: "direct", // Direct attestation für Android
+  cryptoParams: [-7, -35, -257], // ES256, Ed25519, RS256
+});
+
+/**
  * Registrierung: Optionen für FIDO2-Passkey-Registrierung generieren
  */
-
 export async function generateRegistrationOptions(
   username: string
 ): Promise<PublicKeyCredentialCreationOptions> {
+  // Hole die Optionen von fido2-lib. Dabei ist options.challenge ein ArrayBuffer.
   const options = await fido2.attestationOptions();
+  console.log("[Log] Original Challenge (Base64URL): " + arrayBufferToBase64(options.challenge));
 
-  console.log(
-    "🔍 Originale Challenge von fido2.attestationOptions():",
-    options.challenge
-  );
 
-  // 🔥 Fix: Challenge als Base64 speichern
+  // Konvertiere die Challenge in einen Base64URL-String und speichere ihn.
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  
+  console.log("[Log] Challenge als ArrayBuffer (Base64): " + arrayBufferToBase64(options.challenge));
   storeChallenge(username, challengeBase64);
 
-  console.log("✅ Gespeicherte Challenge (Base64):", challengeBase64);
 
-  const userId = arrayBufferToBase64Url(randomBytes(16)); // ✅ Speichern als Base64-String
+  // Generiere eine User-ID und wandle sie in einen Base64URL-String um.
+  const userIdBuffer = randomBytes(16);
+  const userIdBase64 = arrayBufferToBase64Url(userIdBuffer);
 
-  console.log("🆔 Generierte User ID (Uint8Array):", userId);
-
+  // Erstelle das Response-Objekt mit Challenge und User-ID als Strings.
   const response: PublicKeyCredentialCreationOptions = {
     ...options,
-    challenge: challengeBase64 as unknown as BufferSource, // ✅ Jetzt Base64 statt ArrayBuffer
+    rp: {
+      name: "LocalKeyApp",
+      id: rpId  // Use the configured rpId
+    },
+    challenge: challengeBase64, // als Base64URL-String
     user: {
-      id: userId as unknown as BufferSource, // ✅ Jetzt als Base64-String gespeichert
+      id: userIdBase64, // als Base64URL-String
       name: username,
       displayName: username,
     },
     authenticatorSelection: {
-      authenticatorAttachment: "platform" as AuthenticatorAttachment, // ✅ Fix für TypeScript-Fehler
-      residentKey: "required",
+      authenticatorAttachment: "platform",
+      requireResidentKey: false,
       userVerification: "required",
     },
   };
-
-  console.log("📦 Finale `generateRegistrationOptions()` Response:", response);
 
   return response;
 }
 
 /**
- * Registrierung: FIDO2-Passkey-Registrierung verifizieren
+ * Android Direct Attestation: Optionen für FIDO2-Passkey-Registrierung mit direct attestation
  */
-export async function verifyRegistration(credential: any, username: string) {
+export async function generateAndroidDirectRegistrationOptions(
+  username: string
+): Promise<PublicKeyCredentialCreationOptions> {
+  // Verwende Android Direct Attestation Konfiguration
+  const options = await fido2AndroidDirect.attestationOptions();
+  console.log("[Log] Android Direct Challenge (Base64URL): " + arrayBufferToBase64(options.challenge));
+
+  const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("[Log] Android Direct Challenge als ArrayBuffer (Base64): " + arrayBufferToBase64(options.challenge));
+  storeChallenge(username, challengeBase64);
+
+  const userIdBuffer = randomBytes(16);
+  const userIdBase64 = arrayBufferToBase64Url(userIdBuffer);
+
+  const response: PublicKeyCredentialCreationOptions = {
+    ...options,
+    rp: {
+      name: "LocalKeyApp",
+      id: rpId
+    },
+    challenge: challengeBase64,
+    user: {
+      id: userIdBase64,
+      name: username,
+      displayName: username,
+    },
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      requireResidentKey: false,
+      userVerification: "required",
+    },
+    attestation: "direct", // Explizit direct attestation anfordern
+  };
+
+  return response;
+}
+
+/**
+ * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
+ * Nach erfolgreicher Verifikation wird der User in der MongoDB gespeichert.
+ */
+export async function verifyRegistration(
+  credential: any,
+  username: string
+): Promise<Fido2AttestationResult> {
+  username = username.trim();
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-
   console.log("🔄 Geladene Challenge:", challengeBase64);
-  console.log(
-    "📥 Credential für Verifizierung:",
-    JSON.stringify(credential, null, 2)
-  );
+  // Don't delete challenge yet - might need it for iOS fallback
 
-  deleteChallenge(username);
-
-  // Konvertiere id und rawId in ArrayBuffer falls nötig
+  // Konvertiere id und rawId in ArrayBuffer
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
   try {
+    // Direkte Verifikation ohne Patching
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: process.env.ORIGIN || `https://${rpId}`,
       factor: "either",
     });
+    console.log("✅ Registrierung erfolgreich:", attestationResult);
+    
+    // Only delete challenge after successful verification
+    deleteChallenge(username);
 
-    console.log("🔐 Attestation-Resultat:", attestationResult);
-
-    // Logge das Attestation-Objekt zur weiteren Analyse
-    console.log(
-      "🔐 Attestation-Objekt (raw):",
-      JSON.stringify(attestationResult.authnrData, null, 2)
-    );
-
-    // Validierung der Attestation
-    // TODO:  🔥 Prüfen nur Apple Attestation zu erlauben
-    validateAttestation(attestationResult.authnrData);
-
+    // Nach erfolgreicher Registrierung: Prüfe, ob der User bereits existiert und speichere (falls nicht)
+    const existingUser = await User.findOne({ username });
+    if (!existingUser) {
+      const publicKeyPEM = attestationResult.authnrData.get(
+        "credentialPublicKeyPem"
+      );
+      if (!publicKeyPEM) {
+        throw new Error("Public Key konnte nicht extrahiert werden.");
+      }
+      await saveUserToDB({
+        username,
+        credentialId: credential.id.toString(), // Als Base64URL‑String
+        publicKey: publicKeyPEM,
+        counter: 0,
+      });
+      console.log("User erstellt für:", username);
+    } else {
+      console.log("User bereits vorhanden:", existingUser);
+    }
     return attestationResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.attestationResult():", error);
-    throw new Error("Fehler beim Verifizieren der Registrierung.");
+    // Re-throw the original error so we can detect clientDataJSON parsing errors
+    throw error;
   }
 }
 
 /**
- * Authentifizierung: Optionen für FIDO2-Login generieren
+ * Authentifizierung: Optionen für FIDO2-Login generieren.
+ * Diese Funktion ruft fido2.assertionOptions() auf, speichert die Challenge und
+ * setzt allowCredentials, falls der User in der Datenbank gefunden wird.
+ * Wird kein registrierter User gefunden, wird ein Fehler geworfen.
  */
 export async function generateAuthenticationOptions(
   username: string
 ): Promise<PublicKeyCredentialRequestOptions> {
+  console.log("Erstelle Authentifizierungsoptionen für:", username);
   const options = await fido2.assertionOptions();
+  console.log("FIDO2 assertionOptions erhalten:", options);
 
+  // Konvertiere die generierte Challenge in einen Base64URL-String
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("Generierte Challenge (Base64URL):", challengeBase64);
   storeChallenge(username, challengeBase64);
 
-  return {
+  // Suche in der Datenbank nach dem registrierten User
+  const user = await User.findOne({ username });
+  console.log("Geladener User aus der DB:", user);
+  if (!user) {
+    // Wenn kein registrierter User gefunden wird, werfen wir einen Fehler.
+    console.error("Kein registrierter User gefunden für:", username);
+    throw new Error("Kein registrierter User gefunden.");
+  }
+  console.log("User gefunden für allowCredentials:", user);
+  options.allowCredentials = [
+    {
+      type: "public-key",
+      id: base64UrlToArrayBuffer(user.credentialId),
+      // Cast explizit auf AuthenticatorTransport[] (iOS-Typ)
+      transports: ["internal"] as AuthenticatorTransport[],
+    },
+  ];
+  console.log("allowCredentials gesetzt:", options.allowCredentials);
+
+  // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
+  const responseOptions = {
     ...options,
-    challenge: options.challenge,
-    allowCredentials: options.allowCredentials?.map((cred) => ({
-      ...cred,
-      transports: cred.transports as AuthenticatorTransport[] | undefined, // 🔥 Fix für Typfehler in `allowCredentials`
-    })),
+    challenge: challengeBase64, // Überschreibt die originale ArrayBuffer-Challenge
+    rp: { name: "LocalKeyApp" }, // Dummy-Daten, ggf. anpassen
+    user: { id: username, name: username },
   };
+
+  console.log("Authentifizierungsoptionen:", responseOptions);
+  return responseOptions as any;
 }
 
 /**
@@ -161,15 +309,58 @@ export async function verifyAuthentication(
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-
   deleteChallenge(username);
+  const user = await User.findOne({ username });
+  if (!user) {
+    throw new Error("User not found.");
+  }
+  try {
+    const assertionResult = await fido2.assertionResult(assertion, {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey,
+      prevCounter: user.counter,
+      userHandle: null,
+    });
+    // Aktualisiere den Counter in der DB mithilfe der update-Funktion
+    await updateUserCounter(
+      username,
+      assertionResult.authnrData.get("counter") || user.counter
+    );
+    console.log("✅ Authentifizierung erfolgreich:", assertionResult);
+    return assertionResult;
+  } catch (error) {
+    console.error("❌ Fehler bei fido2.assertionResult():", error);
+    throw new Error("Fehler beim Verifizieren der Authentifizierung.");
+  }
+}
 
-  return await fido2.assertionResult(assertion, {
-    challenge: challengeBase64,
-    origin: `https://${rpId}`,
-    factor: "either",
-    publicKey,
-    prevCounter: 0,
-    userHandle: null,
-  });
+/**
+ * Konvertiert einen ArrayBuffer in einen Base64URL-kodierten String.
+ */
+export function arrayBufferToBase64Url(buffer: ArrayBuffer): any {
+  const binary = new Uint8Array(buffer);
+  let base64 = "";
+  for (let i = 0; i < binary.byteLength; i++) {
+    base64 += String.fromCharCode(binary[i]);
+  }
+  return Buffer.from(base64, "binary")
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
+}
+
+/**
+ * Konvertiert einen Base64URL-kodierten String in einen ArrayBuffer.
+ */
+export function base64UrlToArrayBuffer(base64Url: string): ArrayBuffer {
+  const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = Buffer.from(base64, "base64").toString("binary");
+  const buffer = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    buffer[i] = binary.charCodeAt(i);
+  }
+  return buffer.buffer;
 }

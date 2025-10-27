@@ -1,15 +1,35 @@
 import express from "express";
 import cors from "cors";
+import dotenv from "dotenv";
+
+// Load environment variables
+dotenv.config();
 import {
   generateRegistrationOptions,
+  generateAndroidDirectRegistrationOptions,
   verifyRegistration,
   generateAuthenticationOptions,
   verifyAuthentication,
 } from "./webauthn";
 import path from "path";
+import { connectDB } from "./mongodb";
+import { Pool } from "pg";
+import appAttestRouter from "./appattest";
+import { verifyIOSRegistration } from "./ios-registration";
+import { registerIOSSimple } from "./ios-simple-registration";
+import { getChallenge } from "./challenge-store";
+
+// Configure PostgreSQL connection (Neon Postgres on Heroku)
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: {
+    rejectUnauthorized: false
+  }
+});
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || "3000", 10);
+const MONGOPORT = process.env.MONGOPORT || 27017;
 
 app.use(express.json());
 app.use(
@@ -20,6 +40,12 @@ app.use(
   })
 );
 
+connectDB().then(() => {
+  app.listen(MONGOPORT, () => {
+    console.log(`Server läuft auf http://localhost:${MONGOPORT}`);
+  });
+});
+
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
   res.sendFile(
@@ -29,6 +55,173 @@ app.get("/.well-known/apple-app-site-association", (req, res) => {
 
 app.use(express.static(path.join(__dirname, "../public")));
 
+// Apple App Attest Router
+app.use("/api/appattest", appAttestRouter);
+
+// Import security config
+import { requiresAppAttest } from "./config/security-config";
+
+/**
+ * 🔹 Combined Passkey + App Attest Registration
+ * iOS-App sendet beide Attestations in einem Request
+ */
+app.post("/api/register/combined", async (req: any, res: any) => {
+  try {
+    console.log("\n========== COMBINED REGISTRATION START ==========");
+    console.log("Timestamp:", new Date().toISOString());
+    
+    const { username, passkey, appAttest, platform } = req.body;
+    
+    // Validate required fields
+    if (!username || !passkey) {
+      console.error("Missing required fields in combined registration");
+      return res.status(400).json({ 
+        error: "Username and passkey data are required" 
+      });
+    }
+    
+    // Check if App Attest is required for this user
+    const appAttestRequired = requiresAppAttest(username);
+    console.log(`App Attest required for ${username}: ${appAttestRequired}`);
+    
+    if (appAttestRequired && !appAttest) {
+      console.error("App Attest required but not provided");
+      return res.status(400).json({ 
+        error: "App Attest is required for this account",
+        requiresAppAttest: true
+      });
+    }
+    
+    console.log("Processing combined registration for:", username);
+    console.log("Platform:", platform || "web");
+    
+    // Step 1: Verify Passkey Registration
+    console.log("\n📱 Step 1: Verifying Passkey...");
+    let passkeyResult;
+    try {
+      if (platform === "ios-extension") {
+        console.log("🍎 iOS Extension detected - using special handling");
+        // For iOS extensions, we need to handle the challenge differently
+        // iOS generates its own challenge that we cannot override
+        console.log("Server challenge (for audit):", passkey.challenge);
+        
+        // Use iOS-specific registration handler
+        passkeyResult = await verifyIOSRegistration(
+          passkey.credential,
+          username,
+          passkey.challenge // Server challenge for audit
+        );
+        console.log("✅ iOS Passkey verification successful");
+      } else {
+        // Normal web flow - validate challenge as usual
+        passkeyResult = await verifyRegistration(passkey.credential, username);
+        console.log("✅ Passkey verification successful");
+      }
+    } catch (error) {
+      console.error("❌ Passkey verification failed:", error);
+      return res.status(400).json({ 
+        error: "Passkey verification failed",
+        detail: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+    
+    // Step 2: Verify App Attest (if provided)
+    let appAttestResult: any = null;
+    if (appAttest) {
+      console.log("\n🔒 Step 2: Verifying App Attest...");
+      try {
+      // Create a mock request/response to use the app attest router
+      const appAttestReq = {
+        body: {
+          username,
+          keyId: appAttest.keyId,
+          attestationObject: appAttest.attestationObject,
+          localChallenge: appAttest.localChallenge
+        }
+      };
+      
+      // Create a response object to capture the result
+      const appAttestRes = {
+        json: (data: any) => { appAttestResult = data; },
+        status: (code: number) => ({
+          json: (data: any) => {
+            throw new Error(`App Attest failed with status ${code}: ${JSON.stringify(data)}`);
+          }
+        })
+      };
+      
+      // Find the attest route handler and call it
+      const attestRoute = appAttestRouter.stack.find((layer: any) => 
+        layer.route && layer.route.path === '/attest' && layer.route.methods.post
+      );
+      
+      if (!attestRoute || !attestRoute.route || !attestRoute.route.stack || !attestRoute.route.stack[0]) {
+        throw new Error("App Attest route handler not found");
+      }
+      
+      // Call the handler with proper typing
+      const handler = attestRoute.route.stack[0].handle;
+      await handler(appAttestReq as any, appAttestRes as any, () => {});
+      
+      // Check if we got a result
+      if (!appAttestResult || !appAttestResult.verified) {
+        throw new Error("App Attest verification failed");
+      }
+      
+        console.log("✅ App Attest verification successful");
+      } catch (error) {
+        console.error("❌ App Attest verification failed:", error);
+        return res.status(400).json({ 
+          error: "App Attest verification failed",
+          detail: error instanceof Error ? error.message : "Unknown error"
+        });
+      }
+    } else {
+      console.log("ℹ️ App Attest not provided - skipping verification");
+    }
+    
+    // Step 3: Link credentials in database (if needed)
+    console.log("\n🔗 Step 3: Linking credentials...");
+    // TODO: Update user model to store both credential IDs if needed
+    // For now, both are independently stored and linked by username
+    
+    // Prepare combined response
+    const response: any = {
+      success: true,
+      username,
+      passkey: {
+        verified: true,
+        attestationObject: passkeyResult.request.response.attestationObject,
+        clientDataJSON: passkeyResult.request.response.clientDataJSON
+      },
+      message: appAttest ? "Combined registration successful" : "Passkey registration successful"
+    };
+    
+    // Add App Attest data only if it was verified
+    if (appAttestResult) {
+      response.appAttest = {
+        verified: appAttestResult.verified,
+        keyId: appAttestResult.keyId,
+        publicKey: appAttestResult.publicKey,
+        counter: appAttestResult.counter,
+        appId: appAttestResult.appId
+      };
+    }
+    
+    console.log("\n✅ COMBINED REGISTRATION SUCCESSFUL!");
+    console.log("========== COMBINED REGISTRATION END ==========");
+    
+    res.json(response);
+    
+  } catch (error) {
+    console.error("\n❌ Combined registration error:", error);
+    res.status(500).json({ 
+      error: "Combined registration failed",
+      detail: error instanceof Error ? error.message : "Unknown error"
+    });
+  }
+});
+
 /**
  * 🔹 Schritt 1: Registrierung - Challenge generieren
  * iOS-App sendet: { username: "alice" }
@@ -36,7 +229,12 @@ app.use(express.static(path.join(__dirname, "../public")));
  */
 app.post("/api/register", async (req: any, res: any) => {
   try {
-    const { username } = req.body;
+    // Benutzername trimmen, egal ob er in req.body.user.username oder req.body.username übergeben wird
+    const username = (
+      (req.body.user && req.body.user.username) ||
+      req.body.username ||
+      ""
+    ).trim();
     if (!username) {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
@@ -58,20 +256,138 @@ app.post("/api/register", async (req: any, res: any) => {
  */
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
-    const { username, credential } = req.body;
+    // console.log("[REGISTER/VERIFY] Request received:", req.body);
+
+    const { username, credential, platform } = req.body;
     if (!username || !credential) {
+      console.error(
+        "[REGISTER/VERIFY] Fehler: Username oder Credential fehlen"
+      );
       return res
         .status(400)
         .json({ error: "Username und Credential sind erforderlich" });
     }
+    
+    console.log(
+      `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
+    );
+    
+    try {
+      // Try standard verification first
+      const result = await verifyRegistration(credential, username);
+      console.log(
+        "[REGISTER/VERIFY] Verifikation erfolgreich. Ergebnis:",
+        result
+      );
 
-    const result = await verifyRegistration(credential, username);
-    res.json({ success: true, result });
+      // Extrahiere nur die relevanten Felder und gebe sie an ios zurück
+      const simpleResult = {
+        attestationObject: result.request.response.attestationObject,
+        clientDataJSON: result.request.response.clientDataJSON,
+      };
+
+      console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
+
+      // Antworte mit dem Ergebnis
+      res.json({ success: true, ...simpleResult });
+    } catch (error: any) {
+      // Check if the error is due to clientDataHash from iOS
+      if (error.message?.includes("clientDataJson") || 
+          error.message?.includes("parse") ||
+          error.message?.includes("JSON")) {
+        
+        console.log("🍎 Standard verification failed - trying iOS-compatible approach");
+        
+        // Get the stored challenge
+        const storedChallenge = getChallenge(username);
+        if (!storedChallenge) {
+          console.error("No challenge found for user:", username);
+          return res.status(400).json({ error: "Challenge not found" });
+        }
+        
+        try {
+          // Use simplified iOS registration handler
+          const iosResult = await registerIOSSimple({
+            credential,
+            username,
+            challenge: storedChallenge
+          });
+          
+          if (!iosResult.success) {
+            throw new Error(iosResult.error || "iOS registration failed");
+          }
+          
+          console.log("✅ iOS-compatible registration successful");
+          
+          // Return success with the original credential data
+          res.json({ 
+            success: true,
+            attestationObject: credential.response.attestationObject,
+            clientDataJSON: credential.response.clientDataJSON
+          });
+        } catch (iosError) {
+          console.error("iOS registration also failed:", iosError);
+          return res.status(400).json({ 
+            error: "Registration failed",
+            detail: iosError instanceof Error ? iosError.message : "Unknown error"
+          });
+        }
+      } else {
+        // Other error - return original error
+        console.error(
+          "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
+          error
+        );
+        res
+          .status(500)
+          .json({ error: "Fehler beim Verifizieren der Registrierung" });
+      }
+    }
   } catch (error) {
-    console.error("Fehler beim Verifizieren der Registrierung:", error);
+    console.error(
+      "[REGISTER/VERIFY] Fehler beim Verifizieren der Registrierung:",
+      error
+    );
     res
       .status(500)
       .json({ error: "Fehler beim Verifizieren der Registrierung" });
+  }
+});
+
+/**
+ * 🔹 Android Attestation Direct Endpoint
+ * Android-App kann direkte Attestation-Daten anfordern
+ */
+app.post("/api/android/attestation-direct", async (req: any, res: any) => {
+  try {
+    const { username, platform } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ error: "Username ist erforderlich" });
+    }
+    
+    console.log(`[ANDROID-ATTESTATION-DIRECT] Request for: ${username}`);
+    
+    // Generiere WebAuthn Optionen für Android Direct Attestation
+    const options = await generateAndroidDirectRegistrationOptions(username);
+    
+    console.log("[ANDROID-ATTESTATION-DIRECT] Direct attestation options:", {
+      attestation: options.attestation,
+      authenticatorSelection: options.authenticatorSelection
+    });
+    
+    res.json({
+      success: true,
+      options: options,
+      attestation: "direct"
+    });
+    
+  } catch (error) {
+    console.error("[ANDROID-ATTESTATION-DIRECT] Error:", error);
+    res.status(500).json({ 
+      error: "Fehler bei Android Attestation Direct",
+      detail: error instanceof Error ? error.message : "Unknown error"
+    });
   }
 });
 
@@ -82,11 +398,10 @@ app.post("/api/register/verify", async (req: any, res: any) => {
  */
 app.post("/api/login", async (req: any, res: any) => {
   try {
-    const { username } = req.body;
+    const username = (req.body.username || "").trim();
     if (!username) {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
-
     const options = await generateAuthenticationOptions(username);
     res.json(options);
   } catch (error) {
@@ -120,7 +435,30 @@ app.post("/api/login/verify", async (req: any, res: any) => {
   }
 });
 
+/**
+ * 🔹 Debugging - JSON speichern
+ * POST /api/debugging
+ * Empfängt ein JSON-Objekt im Request-Body und speichert es in der Tabelle "debugging" (Spalte "data" vom Typ JSONB).
+ */
+app.post("/api/debugging", async (req: any, res: any) => {
+  // 🔒 Prüfe API-Schlüssel aus Query-Parameter
+  const apiKey = req.query.APIKEY;
+  if (!apiKey || apiKey !== process.env.API_KEY) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+  try {
+    const jsonData = req.body;
+    // Stelle sicher, dass eine Tabelle "debugging" mit einer JSONB-Spalte "data" existiert.
+    const query = 'INSERT INTO debugging (data) VALUES ($1)';
+    await pool.query(query, [jsonData]);
+    res.status(201).json({ success: true });
+  } catch (error) {
+    console.error("Fehler beim Speichern der Debugging-Daten:", error);
+    res.status(500).json({ error: "Fehler beim Speichern der Debugging-Daten" });
+  }
+});
+
 // Server starten
-app.listen(PORT, () => {
-  console.log(`🚀 Server läuft auf http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server läuft auf Port ${PORT}`);
 });

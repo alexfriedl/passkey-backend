@@ -4,23 +4,41 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Passkey Registrierung</title>
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #debugLog {
+        border: 1px solid #ccc;
+        padding: 0.5em;
+        background: #f7f7f7;
+        white-space: pre-wrap;
+        margin-top: 1em;
+        max-height: 300px;
+        overflow: auto;
+      }
+    </style>
   </head>
   <body>
     <h1>Passkey Registrierung</h1>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
-    <pre id="status" style="color: black"></pre>
-    <p id="debug1"></p>
-    <p id="debug2"></p>
-    <p id="debug3"></p>
-    <p id="debug4"></p>
-    <p id="debug41"></p>
-    <p id="debug5"></p>
-    <p id="debug6"></p>
-    <p id="debug7"></p>
+    <pre id="status"></pre>
+    <div id="debugLog"></div>
 
     <script>
-      // ✅ Hilfsfunktion: `ArrayBuffer` in Base64URL umwandeln
+      // Auto-start registration if opened from app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
+          // Auto-start registration when opened from PasskeyGuard app
+          setTimeout(() => {
+            register();
+          }, 1000);
+        }
+      });
+
+      // Hilfsfunktionen zur Umwandlung
       function arrayBufferToBase64(buffer) {
         let binary = "";
         const bytes = new Uint8Array(buffer);
@@ -30,10 +48,9 @@
         return btoa(binary)
           .replace(/\+/g, "-")
           .replace(/\//g, "_")
-          .replace(/=+$/, ""); // Base64URL
+          .replace(/=+$/, "");
       }
 
-      // ✅ Hilfsfunktion: `Base64URL` in `ArrayBuffer` umwandeln
       function base64ToArrayBuffer(base64) {
         const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
         const bytes = new Uint8Array(binary.length);
@@ -43,159 +60,247 @@
         return bytes.buffer;
       }
 
+      // Debugging: Funktion, die Nachrichten sowohl in der Konsole als auch im Markup ausgibt
+      function logDebug(message) {
+        console.log(message);
+        const debugLog = document.getElementById("debugLog");
+        debugLog.textContent += message + "\n";
+      }
+
+      // Check for PasskeyGuard hardware-bound flag in URL fragment
+      let isHardwareBoundAvailable = false;
+      
+      // Parse hardware-bound flag from URL fragment
+      function checkHardwareBoundFlag() {
+        const fragment = window.location.hash.substring(1); // Remove #
+        if (fragment.includes('hwbound=true')) {
+          isHardwareBoundAvailable = true;
+          logDebug('PasskeyGuard hardware-bound mode detected from URL fragment');
+          return true;
+        }
+        return false;
+      }
+      
+      // Check on page load
+      checkHardwareBoundFlag();
+
       async function register() {
-        const API_URL =
-          "https://www.appsprint.de/api";
+        const API_URL = "/api"; // Use relative path for local testing
+        let username = document.getElementById("username").value;
+        
+        // Check URL parameters for username and hardware-bound flag
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('username')) {
+          username = urlParams.get('username');
+          document.getElementById("username").value = username;
+        }
+        
+        const isHardwareBound = urlParams.get('hw') === 'true';
+        
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
 
-        const flattenObject = (obj) => {
-          const flattened = {};
+        // Check for PasskeyGuard hardware-bound mode
+        if (isHardwareBound && isHardwareBoundAvailable) {
+          logDebug(`PasskeyGuard hardware-bound mode available for: ${username}`);
+          return useHardwareBoundPasskey(username);
+        }
 
-          Object.keys(obj).forEach((key) => {
-            const value = obj[key];
+        document.getElementById("status").textContent =
+          "Registrierung startet…";
+        logDebug(`Registrierung gestartet für: ${username} (Hardware-bound: ${isHardwareBound})`);
 
-            if (
-              typeof value === "object" &&
-              value !== null &&
-              !Array.isArray(value)
-            ) {
-              Object.assign(flattened, flattenObject(value));
-            } else {
-              flattened[key] = value;
-            }
-          });
-
-          return flattened;
-        };
-
+        // Schritt 1: Challenge abrufen
+        let res;
         try {
-          const username = document.getElementById("username").value;
-          if (!username) {
-            alert("Bitte einen Benutzernamen eingeben!");
-            return;
-          }
-
-          console.log("📢 Registrierung gestartet für:", username);
-          document.getElementById(
-            "debug1"
-          ).textContent = `❌ Username (debug1): ${username}`;
-
-          // 🔹 Schritt 1: Registrierungschallenge vom Server holen
-          const res = await fetch(`${API_URL}/register`, {
-            // 👈 Nutzt jetzt `hostname.local`
+          logDebug("Hole Challenge vom Server…");
+          res = await fetch(`${API_URL}/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username }),
           });
+        } catch (err) {
+          logDebug("Fehler beim Abrufen der Challenge: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Abrufen der Challenge: " + err;
+          return;
+        }
 
-          document.getElementById(
-            "debug2"
-          ).textContent = `❌ Response (debug2): ${flattenObject(res)}`;
+        let options;
+        try {
+          options = await res.json();
+          logDebug("Empfangene Optionen: " + JSON.stringify(options, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Optionen: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Optionen: " + err;
+          return;
+        }
 
-          const options = await res.json();
+        // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
+        if (typeof options.challenge === "string") {
+          logDebug("Wandle challenge von Base64 zu ArrayBuffer um.");
+          options.challenge = base64ToArrayBuffer(options.challenge);
+        }
+        if (typeof options.user.id === "string") {
+          logDebug("Wandle user.id von Base64 zu ArrayBuffer um.");
+          options.user.id = base64ToArrayBuffer(options.user.id);
+        }
 
-          document.getElementById(
-            "debug3"
-          ).textContent = `❌ Options (debug3): ${options}`;
-
-          console.log("📥 Empfangene `options` von Server:", options);
-
-          // ✅ Fix für `user.id`
-          if (typeof options.user.id === "string") {
-            console.log(
-              "🔄 `user.id` ist Base64. Wird in Uint8Array konvertiert."
-            );
-            options.user.id = base64ToArrayBuffer(options.user.id);
-          }
-
-          // ✅ Fix: Challenge sicherstellen (ArrayBuffer oder Base64-Umwandlung)
-          if (options.challenge) {
-            if (typeof options.challenge === "string") {
-              console.log(
-                "🔄 `challenge` ist Base64. Wird in ArrayBuffer konvertiert."
-              );
-              options.challenge = base64ToArrayBuffer(options.challenge);
-            } else if (!(options.challenge instanceof ArrayBuffer)) {
-              console.error(
-                "❌ `challenge` hat einen unerwarteten Typ:",
-                options.challenge
-              );
-              throw new Error("Challenge hat falsches Format!");
-            }
-          } else {
-            console.error("❌ `challenge` fehlt in `options`!");
-            throw new Error("Challenge nicht erhalten!");
-          }
-
-          console.log("✅ Umgewandelte `challenge`:", options.challenge);
-
-          document.getElementById(
-            "debug4"
-          ).textContent = `❌ Challenge (debug4): ${options.challenge}`;
-
-          // 🔹 Schritt 2: WebAuthn-Registrierung im Browser starten
-          console.log("🔑 WebAuthn-Registrierung wird gestartet...");
-          const credential = await navigator.credentials.create({
+        // Schritt 2: Passkey-Erstellung via WebAuthn
+        let credential;
+        try {
+          logDebug(
+            "Starte WebAuthn-Registrierung über navigator.credentials.create..."
+          );
+          credential = await navigator.credentials.create({
             publicKey: options,
           });
-
-          document.getElementById(
-            "debug41"
-          ).textContent = `❌ credential (debug41): $credential}`;
-
-          console.log("🆕 Erhaltene WebAuthn-Credentials:", credential);
-
-          // ✅ Fix: Korrekte Base64-Umwandlung für `credential`
-          const credentialData = {
-            id: credential.id,
-            rawId: arrayBufferToBase64(credential.rawId),
-            response: {
-              attestationObject: arrayBufferToBase64(
-                credential.response.attestationObject
-              ),
-              clientDataJSON: arrayBufferToBase64(
-                credential.response.clientDataJSON
-              ),
-            },
-            type: credential.type,
-          };
-
-          console.log(
-            "📤 Sende Credential-Daten an den Server:",
-            credentialData
+          logDebug(
+            "Credential erfolgreich erstellt: " + JSON.stringify(credential)
           );
+        } catch (err) {
+          logDebug("Fehler bei credential.create: " + err);
+          document.getElementById("status").textContent =
+            "Fehler bei credential.create: " + err;
+          return;
+        }
 
-          document.getElementById(
-            "debug5"
-          ).textContent = `❌ CredentialData (debug5): ${credentialData}`;
+        const credentialData = {
+          id: credential.id,
+          rawId: arrayBufferToBase64(credential.rawId),
+          response: {
+            attestationObject: arrayBufferToBase64(
+              credential.response.attestationObject
+            ),
+            clientDataJSON: arrayBufferToBase64(
+              credential.response.clientDataJSON
+            ),
+          },
+          type: credential.type,
+        };
 
-          // 🔹 Schritt 3: Registrierung beim Server abschließen
+        logDebug(
+          "Credential-Daten formatiert: " +
+            JSON.stringify(credentialData, null, 2)
+        );
 
-          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+        // Schritt 3: Registrierungsabschluss beim Server
+        let verifyRes;
+        try {
+          logDebug("Sende Credential-Daten an den Server für den Abschluss...");
+          verifyRes = await fetch(`${API_URL}/register/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, credential: credentialData }),
           });
+        } catch (err) {
+          logDebug("Fehler beim Senden der Daten: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Senden der Daten: " + err;
+          return;
+        }
 
-          document.getElementById(
-            "debug6"
-          ).textContent = `❌ verifyRes (debug6): ${verifyRes}`;
+        let verifyResult;
+        try {
+          verifyResult = await verifyRes.json();
+          logDebug("Serverantwort: " + JSON.stringify(verifyResult, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Serverantwort: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Serverantwort: " + err;
+          return;
+        }
 
+        // Nach erfolgreicher Registrierung: Deeplink zurück zur App
+        if (verifyResult.success) {
+          document.getElementById("status").textContent =
+            "Registrierung erfolgreich!";
+          logDebug(
+            "Registrierung erfolgreich – starte Deeplink zurück zur App."
+          );
+          // PasskeyGuard App Deeplink mit WebAuthn completion
+          const token = verifyResult.token || "dummyToken";
+          const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(
+            token
+          )}&username=${encodeURIComponent(username)}`;
+          logDebug("Deeplink: " + deeplink);
+          // Zurück zur App navigieren
+          window.location.href = deeplink;
+        } else {
+          document.getElementById("status").textContent =
+            "Registrierung fehlgeschlagen: " +
+            (verifyResult.error || "Unbekannter Fehler");
+          logDebug(
+            "Registrierung fehlgeschlagen: " +
+              (verifyResult.error || "Unbekannter Fehler")
+          );
+        }
+      }
+
+      // Handler for hardware-bound passkey - requests data from backend
+      async function useHardwareBoundPasskey(username) {
+        const API_URL = "/api";
+        
+        try {
+          document.getElementById("status").textContent = "Hole Hardware-bound Passkey-Daten...";
+          logDebug("Requesting hardware-bound passkey data from backend");
+          
+          // Request hardware-bound data from backend
+          const dataRes = await fetch(`${API_URL}/passkey/hardware-bound`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+          
+          if (!dataRes.ok) {
+            throw new Error("Failed to get hardware-bound data");
+          }
+          
+          const passkeyData = await dataRes.json();
+          logDebug(`Received hardware-bound passkey data: ${JSON.stringify(passkeyData)}`);
+          
+          if (!passkeyData.success || !passkeyData.credential) {
+            throw new Error("No hardware-bound passkey data available");
+          }
+          
+          document.getElementById("status").textContent = "Sende Hardware-bound Passkey an Server...";
+          
+          // Send the hardware-bound credential to verification endpoint
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              username, 
+              credential: passkeyData.credential,
+              hardwareBound: true
+            }),
+          });
+          
           const verifyResult = await verifyRes.json();
-
-          console.log("✅ Server-Antwort auf `register/verify`:", verifyResult);
-
-          document.getElementById(
-            "debug7"
-          ).textContent = `❌ verifyResult (debug7): ${verifyResult}`;
-
-          document.getElementById("status").textContent = verifyResult.success
-            ? "🎉 Registrierung erfolgreich!"
-            : "⚠️ Fehler bei der Registrierung.";
+          logDebug("Hardware-bound registration server response:");
+          logDebug(JSON.stringify(verifyResult, null, 2));
+          
+          if (verifyResult.success) {
+            document.getElementById("status").textContent = "Hardware-bound Registrierung erfolgreich!";
+            logDebug("Hardware-bound registration completed successfully");
+            
+            // Navigate back to app with success
+            const token = verifyResult.token || "hardwareBoundToken";
+            const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=hardware-bound`;
+            logDebug("Returning to app with deeplink: " + deeplink);
+            window.location.href = deeplink;
+            
+          } else {
+            document.getElementById("status").textContent = "Hardware-bound Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
+            logDebug("Hardware-bound registration failed: " + (verifyResult.error || "Unknown error"));
+          }
+          
         } catch (error) {
-          console.error("❌ Fehler bei der Registrierung:", error);
-          document.getElementById(
-            "status"
-          ).textContent = `❌ Fehler beim Registrieren. ${error.message}`;
+          logDebug("ERROR in hardware-bound registration: " + error.message);
+          document.getElementById("status").textContent = "Fehler bei Hardware-bound Registrierung: " + error.message;
         }
       }
     </script>
