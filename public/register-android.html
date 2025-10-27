@@ -264,63 +264,108 @@
         const API_URL = "/api";
         
         try {
-          document.getElementById("status").textContent = "Hole Android Attestation-Daten...";
-          logDebug("Requesting Android attestation data from backend");
+          document.getElementById("status").textContent = "Hole Android Direct Attestation Options...";
+          logDebug("Requesting Android direct attestation options from backend");
           
-          // Request Android attestation data from backend (direct endpoint)
-          const dataRes = await fetch(`${API_URL}/android/attestation-direct`, {
+          // Request Android direct attestation options from backend
+          const optionsRes = await fetch(`${API_URL}/android/attestation-direct`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ username, platform: "android" }),
           });
           
-          if (!dataRes.ok) {
-            throw new Error("Failed to get Android attestation data");
+          if (!optionsRes.ok) {
+            throw new Error("Failed to get Android direct attestation options");
           }
           
-          const attestationData = await dataRes.json();
-          logDebug(`Received Android attestation data: ${JSON.stringify(attestationData)}`);
+          const attestationData = await optionsRes.json();
+          logDebug(`Received Android direct attestation options: ${JSON.stringify(attestationData)}`);
           
-          if (!attestationData.success || !attestationData.credential) {
-            throw new Error("No Android attestation data available");
+          if (!attestationData.success || !attestationData.options) {
+            throw new Error("No Android direct attestation options available");
           }
           
-          document.getElementById("status").textContent = "Sende Android Attestation an Server...";
+          const options = attestationData.options;
           
-          // Send the Android attestation credential to verification endpoint
+          // Verify attestation is set to direct
+          logDebug(`Attestation mode: ${options.attestation}`);
+          if (options.attestation !== "direct") {
+            logDebug("Warning: Attestation is not set to 'direct'");
+          }
+          
+          // Convert challenge and user.id to ArrayBuffer
+          if (typeof options.challenge === "string") {
+            logDebug("Converting challenge from Base64 to ArrayBuffer.");
+            options.challenge = base64ToArrayBuffer(options.challenge);
+          }
+          if (typeof options.user.id === "string") {
+            logDebug("Converting user.id from Base64 to ArrayBuffer.");
+            options.user.id = base64ToArrayBuffer(options.user.id);
+          }
+          
+          document.getElementById("status").textContent = "Erstelle Android Direct Attestation Credential...";
+          
+          // Create credential with direct attestation
+          let credential;
+          try {
+            logDebug("Starting Android WebAuthn registration with direct attestation...");
+            credential = await navigator.credentials.create({
+              publicKey: options,
+            });
+            logDebug("Android direct attestation credential created successfully: " + JSON.stringify(credential));
+          } catch (err) {
+            logDebug("Error creating direct attestation credential: " + err);
+            throw new Error("Failed to create direct attestation credential: " + err);
+          }
+          
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              attestationObject: arrayBufferToBase64(credential.response.attestationObject),
+              clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+            },
+            type: credential.type,
+            platform: "android",
+            attestation: "direct"
+          };
+          
+          document.getElementById("status").textContent = "Sende Android Direct Attestation an Server...";
+          
+          // Send the Android direct attestation credential to verification endpoint
           const verifyRes = await fetch(`${API_URL}/register/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ 
               username, 
-              credential: attestationData.credential,
+              credential: credentialData,
               androidAttestation: true,
               platform: "android"
             }),
           });
           
           const verifyResult = await verifyRes.json();
-          logDebug("Android attestation registration server response:");
+          logDebug("Android direct attestation registration server response:");
           logDebug(JSON.stringify(verifyResult, null, 2));
           
           if (verifyResult.success) {
-            document.getElementById("status").textContent = "Android Attestation Registrierung erfolgreich!";
-            logDebug("Android attestation registration completed successfully");
+            document.getElementById("status").textContent = "Android Direct Attestation Registrierung erfolgreich!";
+            logDebug("Android direct attestation registration completed successfully");
             
             // Navigate back to Android app with success
-            const token = verifyResult.token || "androidAttestationToken";
-            const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=android-attestation`;
+            const token = verifyResult.token || "androidDirectAttestationToken";
+            const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=android-direct-attestation`;
             logDebug("Returning to Android app with deeplink: " + deeplink);
             window.location.href = deeplink;
             
           } else {
-            document.getElementById("status").textContent = "Android Attestation Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
-            logDebug("Android attestation registration failed: " + (verifyResult.error || "Unknown error"));
+            document.getElementById("status").textContent = "Android Direct Attestation Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
+            logDebug("Android direct attestation registration failed: " + (verifyResult.error || "Unknown error"));
           }
           
         } catch (error) {
-          logDebug("ERROR in Android attestation registration: " + error.message);
-          document.getElementById("status").textContent = "Fehler bei Android Attestation Registrierung: " + error.message;
+          logDebug("ERROR in Android direct attestation registration: " + error.message);
+          document.getElementById("status").textContent = "Fehler bei Android Direct Attestation Registrierung: " + error.message;
           
           // Fallback to standard WebAuthn registration
           logDebug("Falling back to standard WebAuthn registration");

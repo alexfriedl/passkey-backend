@@ -6,6 +6,7 @@ import dotenv from "dotenv";
 dotenv.config();
 import {
   generateRegistrationOptions,
+  generateAndroidDirectRegistrationOptions,
   verifyRegistration,
   generateAuthenticationOptions,
   verifyAuthentication,
@@ -367,33 +368,18 @@ app.post("/api/android/attestation-direct", async (req: any, res: any) => {
     
     console.log(`[ANDROID-ATTESTATION-DIRECT] Request for: ${username}`);
     
-    // Generiere WebAuthn Optionen für Android
-    const options = await generateRegistrationOptions(username);
+    // Generiere WebAuthn Optionen für Android Direct Attestation
+    const options = await generateAndroidDirectRegistrationOptions(username);
     
-    // Android-spezifische Konfiguration
-    if (options.authenticatorSelection) {
-      options.authenticatorSelection.authenticatorAttachment = "platform";
-      options.authenticatorSelection.userVerification = "required";
-    }
-    
-    // Simuliere direkten Attestation-Flow für Android
-    const credential = {
-      id: "android-direct-" + Date.now(),
-      rawId: options.challenge, // Verwende challenge als rawId
-      response: {
-        attestationObject: options.challenge,
-        clientDataJSON: options.user.id,
-      },
-      type: "public-key",
-      platform: "android"
-    };
-    
-    console.log("[ANDROID-ATTESTATION-DIRECT] Generated credential:", credential);
+    console.log("[ANDROID-ATTESTATION-DIRECT] Direct attestation options:", {
+      attestation: options.attestation,
+      authenticatorSelection: options.authenticatorSelection
+    });
     
     res.json({
       success: true,
-      credential: credential,
-      options: options
+      options: options,
+      attestation: "direct"
     });
     
   } catch (error) {

@@ -91,6 +91,19 @@ const fido2 = new Fido2Lib({
   cryptoParams: [-7], // ES256 (ECDSA P-256)
 });
 
+// Android Direct Attestation Configuration
+const fido2AndroidDirect = new Fido2Lib({
+  timeout: 60000,
+  rpId: rpId,
+  rpName: "LocalKeyApp",
+  challengeSize: 32,
+  authenticatorAttachment: "platform",
+  authenticatorRequireResidentKey: false,
+  authenticatorUserVerification: "required",
+  attestation: "direct", // Direct attestation für Android
+  cryptoParams: [-7, -35, -257], // ES256, Ed25519, RS256
+});
+
 /**
  * Registrierung: Optionen für FIDO2-Passkey-Registrierung generieren
  */
@@ -136,6 +149,45 @@ export async function generateRegistrationOptions(
   return response;
 }
 
+/**
+ * Android Direct Attestation: Optionen für FIDO2-Passkey-Registrierung mit direct attestation
+ */
+export async function generateAndroidDirectRegistrationOptions(
+  username: string
+): Promise<PublicKeyCredentialCreationOptions> {
+  // Verwende Android Direct Attestation Konfiguration
+  const options = await fido2AndroidDirect.attestationOptions();
+  console.log("[Log] Android Direct Challenge (Base64URL): " + arrayBufferToBase64(options.challenge));
+
+  const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("[Log] Android Direct Challenge als ArrayBuffer (Base64): " + arrayBufferToBase64(options.challenge));
+  storeChallenge(username, challengeBase64);
+
+  const userIdBuffer = randomBytes(16);
+  const userIdBase64 = arrayBufferToBase64Url(userIdBuffer);
+
+  const response: PublicKeyCredentialCreationOptions = {
+    ...options,
+    rp: {
+      name: "LocalKeyApp",
+      id: rpId
+    },
+    challenge: challengeBase64,
+    user: {
+      id: userIdBase64,
+      name: username,
+      displayName: username,
+    },
+    authenticatorSelection: {
+      authenticatorAttachment: "platform",
+      requireResidentKey: false,
+      userVerification: "required",
+    },
+    attestation: "direct", // Explizit direct attestation anfordern
+  };
+
+  return response;
+}
 
 /**
  * Registrierung: FIDO2-Passkey-Registrierung verifizieren.
