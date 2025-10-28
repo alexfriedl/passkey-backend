@@ -210,6 +210,96 @@
         }
       });
 
+      // Handle credential data from PasskeyGuard redirect
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Check if we have credential data from PasskeyGuard
+        if (urlParams.get('credential') && urlParams.get('source') === 'passkeyguard') {
+          console.log('[Demo-RP] 📱 Received credential data from PasskeyGuard!');
+          handlePasskeyGuardCredential(urlParams.get('credential'));
+        }
+      });
+
+      async function handlePasskeyGuardCredential(base64Credential) {
+        try {
+          console.log('[Demo-RP] 🔐 Processing PasskeyGuard credential...');
+          updateStatus('🔐 Processing PasskeyGuard credential...', 'info');
+          
+          // Decode base64 credential
+          const credentialJson = atob(decodeURIComponent(base64Credential));
+          const credentialData = JSON.parse(credentialJson);
+          
+          console.log('[Demo-RP] 📦 Credential data received:', credentialData);
+          
+          const { credentialId, attestationObject, clientDataJSON, username } = credentialData;
+          
+          updateStatus(`
+            ✅ <strong>PasskeyGuard Credential empfangen!</strong><br>
+            Username: ${username}<br>
+            Credential ID: ${credentialId.substring(0, 16)}...<br>
+            <br>
+            <em>Sende an Backend...</em>
+          `, 'success');
+          
+          // Prepare credential for backend
+          const credential = {
+            id: credentialId,
+            rawId: credentialId,
+            response: {
+              attestationObject: attestationObject,
+              clientDataJSON: clientDataJSON
+            },
+            type: 'public-key'
+          };
+          
+          // Send to backend
+          const API_URL = "/api";
+          console.log('[Demo-RP] 📤 Sending credential to backend /api/register/verify');
+          
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: username, 
+              credential: credential,
+              platform: 'ios-extension-redirect'
+            })
+          });
+          
+          const verifyResult = await verifyRes.json();
+          console.log('[Demo-RP] 📥 Backend response:', verifyResult);
+          
+          if (verifyResult.success) {
+            updateStatus(`
+              🎉 <strong>Registrierung erfolgreich!</strong><br>
+              Username: ${username}<br>
+              <br>
+              ✅ Passkey wurde erstellt<br>
+              ✅ DCAppAttest wurde verifiziert<br>
+              <br>
+              <em>Die Hardware-bound Registrierung ist abgeschlossen.</em>
+            `, 'success');
+          } else {
+            updateStatus(`
+              ❌ <strong>Registrierung fehlgeschlagen</strong><br>
+              ${verifyResult.error || 'Unbekannter Fehler'}<br>
+              <br>
+              <button onclick="location.reload()">Erneut versuchen</button>
+            `, 'error');
+          }
+          
+        } catch (error) {
+          console.error('[Demo-RP] ❌ Error processing PasskeyGuard credential:', error);
+          updateStatus(`
+            ❌ <strong>Fehler beim Verarbeiten der Credential</strong><br>
+            ${error.message}<br>
+            <br>
+            <button onclick="location.reload()">Erneut versuchen</button>
+          `, 'error');
+        }
+      }
+
       // Initial status
       updateStatus('📱 Bereit für Passkey-Registrierung', 'info');
     </script>
