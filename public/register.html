@@ -27,6 +27,20 @@
     <div id="debugLog"></div>
 
     <script>
+      // Store DCAppAttest data when received from iOS
+      let pendingDCAppAttestData = null;
+      
+      // Listen for DCAppAttest data from iOS app
+      window.addEventListener('message', function(event) {
+        logDebug('Received message event: ' + JSON.stringify(event.data));
+        
+        if (event.data && event.data.type === 'dcAppAttestData') {
+          pendingDCAppAttestData = event.data.dcAppAttest;
+          logDebug('Stored DCAppAttest data from iOS app');
+          logDebug(JSON.stringify(pendingDCAppAttestData, null, 2));
+        }
+      });
+      
       // Auto-start registration if opened from app
       window.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
@@ -168,6 +182,66 @@
           return;
         }
 
+        // For iOS PasskeyGuard: Wait for DCAppAttest data if credential is from iOS
+        let modifiedClientDataJSON = null;
+        const isPasskeyGuardIOS = navigator.userAgent.includes('PasskeyGuard') || urlParams.get('hw') === 'true';
+        
+        if (isPasskeyGuardIOS) {
+          logDebug("PasskeyGuard iOS detected - waiting for DCAppAttest data...");
+          
+          // Create a promise to wait for DCAppAttest data
+          const waitForDCAppAttest = new Promise((resolve) => {
+            // Set a timeout in case data doesn't arrive
+            const timeout = setTimeout(() => {
+              logDebug("DCAppAttest timeout - proceeding without it");
+              resolve(null);
+            }, 3000); // Wait max 3 seconds
+            
+            // Listen for DCAppAttest data
+            const handleMessage = (event) => {
+              if (event.data && event.data.type === 'dcAppAttestData') {
+                clearTimeout(timeout);
+                window.removeEventListener('message', handleMessage);
+                logDebug("DCAppAttest data received!");
+                resolve(event.data.dcAppAttest);
+              }
+            };
+            
+            window.addEventListener('message', handleMessage);
+            
+            // Also check if data is already available
+            if (pendingDCAppAttestData) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handleMessage);
+              resolve(pendingDCAppAttestData);
+            }
+          });
+          
+          // Wait for DCAppAttest data
+          const dcAppAttestInfo = await waitForDCAppAttest;
+          
+          if (dcAppAttestInfo) {
+            logDebug("Processing DCAppAttest injection...");
+            
+            // Decode the original clientDataJSON
+            const originalClientData = JSON.parse(
+              new TextDecoder().decode(
+                base64ToArrayBuffer(arrayBufferToBase64(credential.response.clientDataJSON))
+              )
+            );
+            
+            // Inject DCAppAttest into extensions
+            originalClientData.extensions = originalClientData.extensions || {};
+            originalClientData.extensions.dcAppAttest = dcAppAttestInfo;
+            
+            // Re-encode the modified clientDataJSON
+            modifiedClientDataJSON = btoa(JSON.stringify(originalClientData));
+            
+            logDebug("Injected DCAppAttest into clientDataJSON:");
+            logDebug(JSON.stringify(originalClientData, null, 2));
+          }
+        }
+        
         const credentialData = {
           id: credential.id,
           rawId: arrayBufferToBase64(credential.rawId),
@@ -175,7 +249,7 @@
             attestationObject: arrayBufferToBase64(
               credential.response.attestationObject
             ),
-            clientDataJSON: arrayBufferToBase64(
+            clientDataJSON: modifiedClientDataJSON || arrayBufferToBase64(
               credential.response.clientDataJSON
             ),
           },

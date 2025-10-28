@@ -103,6 +103,43 @@
     </div>
 
     <script>
+      // Store for DCAppAttest data from iOS app
+      let pendingDCAppAttestData = null;
+      
+      // Listen for DCAppAttest data from iOS app via postMessage
+      window.addEventListener('message', function(event) {
+        console.log('[Demo-RP] Received message:', event.data);
+        
+        if (event.data && event.data.type === 'dcAppAttestData') {
+          pendingDCAppAttestData = event.data.dcAppAttest;
+          console.log('[Demo-RP] Stored DCAppAttest data from iOS app');
+          console.log(JSON.stringify(pendingDCAppAttestData, null, 2));
+          
+          updateStatus(`
+            ✅ <strong>DCAppAttest Daten empfangen!</strong><br>
+            KeyId: ${pendingDCAppAttestData.keyId}<br>
+            Platform: ${pendingDCAppAttestData.platform}
+          `, 'success');
+        }
+      });
+      
+      // Also listen for webkit message handler (iOS WKWebView)
+      if (window.webkit && window.webkit.messageHandlers) {
+        console.log('[Demo-RP] WebKit message handlers available');
+        
+        // Define global function for iOS to call
+        window.receiveDCAppAttestData = function(dcAppAttestData) {
+          console.log('[Demo-RP] Received DCAppAttest data from iOS:', dcAppAttestData);
+          pendingDCAppAttestData = dcAppAttestData;
+          updateStatus(`
+            ✅ <strong>DCAppAttest Daten von iOS empfangen!</strong><br>
+            KeyId: ${dcAppAttestData.keyId}<br>
+            Platform: ${dcAppAttestData.platform}<br>
+            Timestamp: ${new Date(dcAppAttestData.timestamp * 1000).toLocaleString()}
+          `, 'success');
+        };
+      }
+      
       function updateStatus(message, type = 'info') {
         const status = document.getElementById('status');
         const colors = {
@@ -141,6 +178,12 @@
         const currentOrigin = window.location.origin;
         const registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true`;
         
+        // If we have pending DCAppAttest data, include it in the URL
+        if (pendingDCAppAttestData) {
+          const dcAppAttestParam = encodeURIComponent(JSON.stringify(pendingDCAppAttestData));
+          registerUrl += `&dcAppAttest=${dcAppAttestParam}`;
+        }
+        
         // Deeplink to PasskeyGuard app
         const deeplink = `passkeyguard-webauthn://?origin=${encodeURIComponent(registerUrl)}`;
         
@@ -148,6 +191,7 @@
           🚀 <strong>Deeplink generiert:</strong><br>
           <code>${deeplink}</code><br><br>
           <em>PasskeyGuard App wird geöffnet...</em>
+          ${pendingDCAppAttestData ? '<br>📎 DCAppAttest Daten angehängt' : ''}
         `, 'success');
 
         // Try to open the app
