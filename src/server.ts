@@ -256,7 +256,10 @@ app.post("/api/register", async (req: any, res: any) => {
  */
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
-    // console.log("[REGISTER/VERIFY] Request received:", req.body);
+    // DEBUG: Log complete request from iOS/Safari
+    console.log("🔍 DEBUG: Complete request received at /api/register/verify:");
+    console.log("🔍 DEBUG: Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("🔍 DEBUG: Body:", JSON.stringify(req.body, null, 2));
 
     const { username, credential, platform } = req.body;
     if (!username || !credential) {
@@ -271,6 +274,37 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
+    
+    // DEBUG: Log credential details
+    console.log("🔍 DEBUG: Credential structure received from iOS:");
+    console.log("🔍 DEBUG: - ID:", credential.id);
+    console.log("🔍 DEBUG: - Raw ID:", credential.rawId);
+    console.log("🔍 DEBUG: - Type:", credential.type);
+    console.log("🔍 DEBUG: - Response object keys:", Object.keys(credential.response || {}));
+    
+    if (credential.response) {
+      console.log("🔍 DEBUG: - clientDataJSON (base64):", credential.response.clientDataJSON?.substring(0, 100) + "...");
+      console.log("🔍 DEBUG: - attestationObject (base64):", credential.response.attestationObject?.substring(0, 100) + "...");
+      console.log("🔍 DEBUG: - attestationObject size:", credential.response.attestationObject?.length || 0);
+      
+      // Try to decode clientDataJSON
+      try {
+        const clientDataBuffer = Buffer.from(credential.response.clientDataJSON, 'base64');
+        const clientData = JSON.parse(clientDataBuffer.toString());
+        console.log("🔍 DEBUG: Decoded clientDataJSON:", JSON.stringify(clientData, null, 2));
+      } catch (e) {
+        console.log("🔍 DEBUG: Could not decode clientDataJSON:", e);
+      }
+      
+      // Try to decode attestationObject structure
+      try {
+        const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
+        console.log("🔍 DEBUG: AttestationObject buffer size:", attestationBuffer.length);
+        console.log("🔍 DEBUG: AttestationObject hex (first 100 bytes):", attestationBuffer.slice(0, 100).toString('hex'));
+      } catch (e) {
+        console.log("🔍 DEBUG: Could not decode attestationObject:", e);
+      }
+    }
     
     try {
       // Try standard verification first
