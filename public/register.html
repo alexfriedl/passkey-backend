@@ -53,10 +53,10 @@
         }
         
         if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
-          // Show message to user to click register button
-          document.getElementById("status").textContent = 
-            "🔑 PasskeyGuard Hardware-Bound Mode - Bitte auf 'Registrieren' klicken";
-          logDebug("Hardware-bound mode detected - waiting for user to click register button");
+          // Auto-start registration when opened from PasskeyGuard app
+          setTimeout(() => {
+            register();
+          }, 1000);
         }
       });
       
