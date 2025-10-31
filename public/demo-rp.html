@@ -32,7 +32,7 @@
         background: #007bff;
         color: white;
         border: none;
-        padding: 12px 24px;
+        padding: 4px 8px;
         border-radius: 4px;
         cursor: pointer;
         font-size: 16px;
@@ -42,7 +42,7 @@
         background: #0056b3;
       }
       .deeplink-button {
-        background: #28a745;
+        background: #0056b3;
       }
       .deeplink-button:hover {
         background: #1e7e34;
@@ -73,18 +73,11 @@
       </div>
 
       <div class="step">
-        <h3>Schritt 1: Standard WebAuthn Registrierung</h3>
-        <p>Normale Passkey-Registrierung ohne PasskeyGuard App:</p>
-        <input type="text" id="username" placeholder="Benutzername eingeben..." />
-        <button onclick="standardRegister()">Standard Registrierung</button>
-      </div>
-
-      <div class="step">
-        <h3>Schritt 2: PasskeyGuard Hardware-bound Registrierung</h3>
-        <p>Registrierung mit DCAppAttest Hardware-Integrity Proof:</p>
+        <h3>PasskeyGuard</h3>
+        <p>Register with DCAppAttest Hardware-Integrity Proof</p>
         <input type="text" id="username-hw" placeholder="Benutzername eingeben..." />
         <button class="deeplink-button" onclick="hardwareBoundRegister()">
-          🔒 Hardware-bound Registrierung
+          Register
         </button>
       </div>
 
