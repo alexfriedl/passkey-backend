@@ -197,6 +197,17 @@ export async function verifyRegistration(
   credential: any,
   username: string
 ): Promise<Fido2AttestationResult> {
+  console.log("\n🔍 DEBUG: === verifyRegistration START ===");
+  console.log("🔍 DEBUG: Username:", username);
+  console.log("🔍 DEBUG: Credential keys:", Object.keys(credential));
+  console.log("🔍 DEBUG: Response keys:", credential.response ? Object.keys(credential.response) : 'No response object');
+  
+  // Log raw attestation object
+  if (credential.response && credential.response.attestationObject) {
+    console.log("🔍 DEBUG: Raw attestationObject base64 length:", credential.response.attestationObject.length);
+    console.log("🔍 DEBUG: Raw attestationObject base64 (first 200 chars):", credential.response.attestationObject.substring(0, 200) + "...");
+  }
+  
   username = username.trim();
   const challengeBase64 = getChallenge(username);
   if (!challengeBase64) {
@@ -209,6 +220,33 @@ export async function verifyRegistration(
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
+  // Add detailed logging before calling fido2.attestationResult
+  console.log("\n🔍 DEBUG: About to call fido2.attestationResult with:");
+  console.log("🔍 DEBUG: - challenge:", challengeBase64);
+  console.log("🔍 DEBUG: - origin:", process.env.ORIGIN || `https://${rpId}`);
+  console.log("🔍 DEBUG: - factor:", "either");
+  
+  // Decode and log attestation object before passing to fido2-lib
+  if (credential.response && credential.response.attestationObject) {
+    try {
+      const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
+      const attestationObject = cbor.decodeFirstSync(attestationBuffer);
+      
+      console.log("\n🔍 DEBUG: Pre-fido2-lib attestation object analysis:");
+      console.log("🔍 DEBUG: - fmt:", attestationObject.fmt);
+      console.log("🔍 DEBUG: - attStmt keys:", Object.keys(attestationObject.attStmt || {}));
+      
+      if (attestationObject.attStmt && attestationObject.attStmt.dcAppAttest) {
+        console.log("🔍 DEBUG: ✅ dcAppAttest present before fido2-lib processing");
+        console.log("🔍 DEBUG: - dcAppAttest size:", attestationObject.attStmt.dcAppAttest.length, "bytes");
+      } else {
+        console.log("🔍 DEBUG: ❌ dcAppAttest NOT present before fido2-lib processing");
+      }
+    } catch (e) {
+      console.log("🔍 DEBUG: Could not pre-analyze attestation object:", e);
+    }
+  }
+  
   try {
     // Direkte Verifikation ohne Patching
     const attestationResult = await fido2.attestationResult(credential, {

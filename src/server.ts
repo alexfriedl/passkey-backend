@@ -301,6 +301,85 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
         console.log("🔍 DEBUG: AttestationObject buffer size:", attestationBuffer.length);
         console.log("🔍 DEBUG: AttestationObject hex (first 100 bytes):", attestationBuffer.slice(0, 100).toString('hex'));
+        
+        // Import cbor at the top of the function if needed
+        const cbor = require('cbor');
+        
+        // Decode CBOR attestation object
+        try {
+          const attestationObject = cbor.decodeFirstSync(attestationBuffer);
+          console.log("\n🔍 DEBUG: Decoded attestation object structure:");
+          console.log("🔍 DEBUG: - fmt (attestation format):", attestationObject.fmt);
+          console.log("🔍 DEBUG: - authData length:", attestationObject.authData ? attestationObject.authData.length : 'N/A');
+          
+          // Log attStmt structure
+          console.log("\n🔍 DEBUG: attStmt (attestation statement) contents:");
+          if (attestationObject.attStmt) {
+            console.log("🔍 DEBUG: - attStmt type:", typeof attestationObject.attStmt);
+            console.log("🔍 DEBUG: - attStmt keys:", Object.keys(attestationObject.attStmt));
+            
+            // Log each field in attStmt
+            for (const [key, value] of Object.entries(attestationObject.attStmt)) {
+              if (Buffer.isBuffer(value)) {
+                console.log(`🔍 DEBUG: - attStmt.${key} (Buffer):`, value.length, "bytes");
+                console.log(`🔍 DEBUG: - attStmt.${key} hex (first 50 bytes):`, value.slice(0, 50).toString('hex'));
+                console.log(`🔍 DEBUG: - attStmt.${key} base64:`, value.toString('base64'));
+              } else if (typeof value === 'object' && value !== null) {
+                console.log(`🔍 DEBUG: - attStmt.${key} (Object):`, JSON.stringify(value, null, 2));
+              } else {
+                console.log(`🔍 DEBUG: - attStmt.${key}:`, value);
+              }
+            }
+            
+            // Special check for dcAppAttest
+            if ('dcAppAttest' in attestationObject.attStmt) {
+              console.log("\n🔍 DEBUG: ✅ dcAppAttest field found in attStmt!");
+              const dcAppAttest = attestationObject.attStmt.dcAppAttest;
+              console.log("🔍 DEBUG: - dcAppAttest size:", Buffer.isBuffer(dcAppAttest) ? dcAppAttest.length : 'Not a buffer');
+              
+              // Try to parse dcAppAttest as CBOR if it's large enough
+              if (Buffer.isBuffer(dcAppAttest) && dcAppAttest.length > 100) {
+                try {
+                  const dcAppAttestDecoded = cbor.decodeFirstSync(dcAppAttest);
+                  console.log("🔍 DEBUG: - dcAppAttest decoded structure:", JSON.stringify(dcAppAttestDecoded, null, 2));
+                } catch (e) {
+                  console.log("🔍 DEBUG: - dcAppAttest is not CBOR encoded");
+                }
+              }
+            } else {
+              console.log("\n🔍 DEBUG: ❌ dcAppAttest field NOT found in attStmt");
+              console.log("🔍 DEBUG: Available attStmt fields:", Object.keys(attestationObject.attStmt));
+            }
+            
+            // Log the entire attStmt as JSON for easier inspection
+            console.log("\n🔍 DEBUG: Complete attStmt object (JSON stringified):");
+            const attStmtCopy: any = {};
+            for (const [key, value] of Object.entries(attestationObject.attStmt)) {
+              if (Buffer.isBuffer(value)) {
+                attStmtCopy[key] = {
+                  type: 'Buffer',
+                  length: value.length,
+                  base64: value.toString('base64').substring(0, 100) + '...'
+                };
+              } else {
+                attStmtCopy[key] = value;
+              }
+            }
+            console.log(JSON.stringify(attStmtCopy, null, 2));
+          } else {
+            console.log("🔍 DEBUG: attStmt is null or undefined");
+          }
+          
+          // Also log if attestation format is 'apple-appattest'
+          if (attestationObject.fmt === 'apple-appattest') {
+            console.log("\n🔍 DEBUG: ✅ Attestation format is 'apple-appattest' as expected!");
+          } else {
+            console.log("\n🔍 DEBUG: ⚠️ Attestation format is NOT 'apple-appattest', got:", attestationObject.fmt);
+          }
+          
+        } catch (cborError) {
+          console.log("🔍 DEBUG: Failed to decode attestation object as CBOR:", cborError);
+        }
       } catch (e) {
         console.log("🔍 DEBUG: Could not decode attestationObject:", e);
       }
