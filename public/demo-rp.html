@@ -76,6 +76,15 @@
         </button>
       </div>
 
+      <div class="step">
+        <h3>Authentication</h3>
+        <p>Authenticate with existing passkey</p>
+        <input type="text" id="username-auth" placeholder="Username..." />
+        <button class="deeplink-button" onclick="hardwareBoundAuthenticate()">
+          Authenticate
+        </button>
+      </div>
+
       <div id="status"></div>
 
       <div class="step">
@@ -180,6 +189,36 @@
           <code>${deeplink}</code><br><br>
           <em>PasskeyGuard App wird geöffnet...</em>
           ${pendingDCAppAttestData ? '<br>📎 DCAppAttest Daten angehängt' : ''}
+        `, 'success');
+
+        // Try to open the app
+        try {
+          window.location.href = deeplink;
+        } catch (error) {
+          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. App installiert?', 'error');
+        }
+      }
+
+      function hardwareBoundAuthenticate() {
+        const username = document.getElementById('username-auth').value;
+        if (!username) {
+          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        updateStatus('🔐 Starte Hardware-bound Authentifizierung...', 'info');
+
+        // Create deeplink to PasskeyGuard app with RP origin
+        const currentOrigin = window.location.origin;
+        const authenticateUrl = `${currentOrigin}/login.html?username=${encodeURIComponent(username)}&hw=true`;
+        
+        // Deeplink to PasskeyGuard app
+        const deeplink = `passkeyguard://?origin=${encodeURIComponent(authenticateUrl)}`;
+        
+        updateStatus(`
+          🚀 <strong>Deeplink generiert:</strong><br>
+          <code>${deeplink}</code><br><br>
+          <em>PasskeyGuard App wird geöffnet...</em>
         `, 'success');
 
         // Try to open the app
