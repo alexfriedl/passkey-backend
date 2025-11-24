@@ -13,7 +13,7 @@ Diese Anleitung erklärt, wie du die Integration zwischen dem Backend und der Pa
 
 ### iOS App Änderungen
 - ✅ SFSafariViewController Integration
-- ✅ Deeplink Support (`passkeyguard-webauthn://` und `passkeyguard://`)
+- ✅ Deeplink Support (`passkeyguard://` und `passkeyguard://`)
 - ✅ Passkey-Generierung im Main App Context
 - ✅ DCAppAttest Hardware-Integrity Proof
 
@@ -36,7 +36,7 @@ Browser → http://localhost:3000/demo-rp.html
 
 #### Schritt 1: RP Website generiert Deeplink
 ```javascript
-const deeplink = `passkeyguard-webauthn://?origin=${encodeURIComponent(registerUrl)}`;
+const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}`;
 window.location.href = deeplink;
 ```
 
@@ -59,13 +59,13 @@ window.location.href = deeplink;
 
 ### iOS App registriert:
 1. `passkeyguard://` - Basis App Scheme
-2. `passkeyguard-webauthn://` - WebAuthn Initiierung
+2. `passkeyguard://` - WebAuthn Initiierung
 
 ### Verwendete Deeplinks:
 
 #### 1. RP → App (Start WebAuthn)
 ```
-passkeyguard-webauthn://?origin=https://example.com/register.html?username=testuser&hw=true
+passkeyguard://?origin=https://example.com/register.html?username=testuser&hw=true
 ```
 
 #### 2. App → App (Completion)
@@ -149,7 +149,7 @@ yarn start
 
 ### iOS App:
 ```
-MAIN APP: Handling URL scheme: passkeyguard-webauthn://...
+MAIN APP: Handling URL scheme: passkeyguard://...
 MAIN APP: WebAuthn request received: ...
 MAIN APP: Opening WebAuthn flow in Safari View for RP: ...
 MAIN APP: DCAppAttest key generated: ...
