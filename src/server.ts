@@ -10,6 +10,7 @@ import {
   verifyRegistration,
   generateAuthenticationOptions,
   verifyAuthentication,
+  base64UrlToArrayBuffer,
 } from "./webauthn";
 import path from "path";
 import { connectDB } from "./mongodb";
@@ -547,6 +548,21 @@ app.post("/api/login", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", assertion: {...}, publicKey: "abc123..." }
  * Server überprüft die Authentifizierung
  */
+// Convert base64 strings back to ArrayBuffers for fido2-lib
+function convertAssertionToArrayBuffers(assertion: any) {
+  return {
+    id: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : assertion.id,
+    rawId: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : base64UrlToArrayBuffer(assertion.id),
+    response: {
+      authenticatorData: base64UrlToArrayBuffer(assertion.response.authenticatorData),
+      clientDataJSON: base64UrlToArrayBuffer(assertion.response.clientDataJSON),
+      signature: base64UrlToArrayBuffer(assertion.response.signature),
+      userHandle: assertion.response.userHandle ? base64UrlToArrayBuffer(assertion.response.userHandle) : null,
+    },
+    type: assertion.type,
+  };
+}
+
 app.post("/api/login/verify", async (req: any, res: any) => {
   try {
     const { username, assertion, publicKey } = req.body;
@@ -555,7 +571,11 @@ app.post("/api/login/verify", async (req: any, res: any) => {
         .status(400)
         .json({ error: "Username und Assertion sind erforderlich" });
     }
-    const result = await verifyAuthentication(assertion, publicKey, username);
+    
+    // Convert base64 strings back to ArrayBuffers for fido2-lib
+    const convertedAssertion = convertAssertionToArrayBuffers(assertion);
+    
+    const result = await verifyAuthentication(convertedAssertion, publicKey, username);
     res.json({ success: true, result });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Authentifizierung:", error);
