@@ -173,7 +173,7 @@
 
         // Create deeplink to PasskeyGuard app with RP origin
         const currentOrigin = window.location.origin;
-        const registerUrl = `${currentOrigin}/demo-rp.html?username=${encodeURIComponent(username)}&hw=true`;
+        const registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true`;
         
         // If we have pending DCAppAttest data, include it in the URL
         if (pendingDCAppAttestData) {
