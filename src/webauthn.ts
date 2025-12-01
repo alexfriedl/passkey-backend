@@ -360,6 +360,15 @@ export async function verifyAuthentication(
   }
   
   try {
+    console.log('fido2.assertionResult called with:', {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey: userPublicKey?.substring(0, 50) + '...',
+      prevCounter: user.counter,
+      userHandle: null,
+    });
+    
     const assertionResult = await fido2.assertionResult(assertion, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,

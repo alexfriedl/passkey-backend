@@ -550,7 +550,19 @@ app.post("/api/login", async (req: any, res: any) => {
  */
 // Convert base64 strings back to ArrayBuffers for fido2-lib
 function convertAssertionToArrayBuffers(assertion: any) {
-  return {
+  console.log('Converting assertion from base64 strings to ArrayBuffers:', {
+    id: assertion.id,
+    rawId: assertion.rawId,
+    type: assertion.type,
+    response: {
+      authenticatorData: assertion.response.authenticatorData?.substring(0, 20) + '...',
+      clientDataJSON: assertion.response.clientDataJSON?.substring(0, 20) + '...',
+      signature: assertion.response.signature?.substring(0, 20) + '...',
+      userHandle: assertion.response.userHandle,
+    }
+  });
+  
+  const converted = {
     id: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : assertion.id,
     rawId: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : base64UrlToArrayBuffer(assertion.id),
     response: {
@@ -561,6 +573,17 @@ function convertAssertionToArrayBuffers(assertion: any) {
     },
     type: assertion.type,
   };
+  
+  console.log('Converted assertion types:', {
+    id: converted.id?.constructor?.name,
+    rawId: converted.rawId?.constructor?.name,
+    authenticatorData: converted.response.authenticatorData?.constructor?.name,
+    clientDataJSON: converted.response.clientDataJSON?.constructor?.name,
+    signature: converted.response.signature?.constructor?.name,
+    userHandle: converted.response.userHandle?.constructor?.name,
+  });
+  
+  return converted;
 }
 
 app.post("/api/login/verify", async (req: any, res: any) => {
