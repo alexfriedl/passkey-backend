@@ -352,12 +352,19 @@ export async function verifyAuthentication(
   if (!user) {
     throw new Error("User not found.");
   }
+  
+  // Use publicKey from database if not provided in request
+  const userPublicKey = publicKey || user.publicKey;
+  if (!userPublicKey) {
+    throw new Error("PublicKey nicht gefunden.");
+  }
+  
   try {
     const assertionResult = await fido2.assertionResult(assertion, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
       factor: "either",
-      publicKey,
+      publicKey: userPublicKey,
       prevCounter: user.counter,
       userHandle: null,
     });
