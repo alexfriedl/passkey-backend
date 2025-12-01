@@ -119,12 +119,23 @@
 
       // Hilfsfunktion: Base64URL in ArrayBuffer umwandeln
       function base64ToArrayBuffer(base64) {
-        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-          bytes[i] = binary.charCodeAt(i);
+        // Fix: Handle non-string inputs
+        if (base64 == null || typeof base64 !== 'string') {
+          console.error('base64ToArrayBuffer: Invalid input:', base64, typeof base64);
+          return new ArrayBuffer(0);
         }
-        return bytes.buffer;
+        
+        try {
+          const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+          const bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+          }
+          return bytes.buffer;
+        } catch (error) {
+          console.error('base64ToArrayBuffer: Error converting:', error);
+          return new ArrayBuffer(0);
+        }
       }
 
       // Hilfsfunktion: ArrayBuffer in Base64URL umwandeln
