@@ -209,7 +209,7 @@ export async function verifyRegistration(
   }
   
   username = username.trim();
-  const challengeBase64 = getChallenge(username);
+  const challengeBase64 = await getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
@@ -302,7 +302,7 @@ export async function generateAuthenticationOptions(
   // Konvertiere die generierte Challenge in einen Base64URL-String
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   console.log("Generierte Challenge (Base64URL):", challengeBase64);
-  storeChallenge(username, challengeBase64);
+  await storeChallenge(username, challengeBase64);
 
   // Suche in der Datenbank nach dem registrierten User
   const user = await User.findOne({ username });
@@ -343,11 +343,11 @@ export async function verifyAuthentication(
   publicKey: string,
   username: string
 ) {
-  const challengeBase64 = getChallenge(username);
+  const challengeBase64 = await getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-  deleteChallenge(username);
+  await deleteChallenge(username);
   const user = await User.findOne({ username });
   if (!user) {
     throw new Error("User not found.");

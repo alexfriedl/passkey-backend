@@ -41,11 +41,6 @@ app.use(
   })
 );
 
-connectDB().then(() => {
-  app.listen(MONGOPORT, () => {
-    console.log(`Server läuft auf http://localhost:${MONGOPORT}`);
-  });
-});
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
@@ -430,7 +425,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         console.log("🍎 Standard verification failed - trying iOS-compatible approach");
         
         // Get the stored challenge
-        const storedChallenge = getChallenge(username);
+        const storedChallenge = await getChallenge(username);
         if (!storedChallenge) {
           console.error("No challenge found for user:", username);
           return res.status(400).json({ error: "Challenge not found" });
@@ -632,6 +627,8 @@ app.post("/api/debugging", async (req: any, res: any) => {
 });
 
 // Server starten
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server läuft auf Port ${PORT}`);
+connectDB().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server läuft auf Port ${PORT}`);
+  });
 });
