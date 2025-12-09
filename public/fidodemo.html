@@ -151,11 +151,22 @@
           <em>PasskeyGuard App wird geöffnet...</em>
         `, 'success');
 
-        // Versuche die App zu öffnen
+        // Versuche die App zu öffnen mit Fallback
         try {
           window.location.href = deeplink;
+          
+          // Fallback nach 2 Sekunden wenn App nicht öffnet
+          setTimeout(() => {
+            updateStatus('⚠️ PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 1000);
+          }, 2000);
         } catch (error) {
-          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. App installiert?', 'error');
+          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1000);
         }
       }
 
@@ -183,11 +194,22 @@
           <em>PasskeyGuard App wird geöffnet...</em>
         `, 'success');
 
-        // Versuche die App zu öffnen
+        // Versuche die App zu öffnen mit Fallback
         try {
           window.location.href = deeplink;
+          
+          // Fallback nach 2 Sekunden wenn App nicht öffnet
+          setTimeout(() => {
+            updateStatus('⚠️ PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 1000);
+          }, 2000);
         } catch (error) {
-          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. App installiert?', 'error');
+          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1000);
         }
       }
 
