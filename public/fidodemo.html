@@ -93,7 +93,7 @@
         <ol>
           <li><strong>User</strong> startet auf fidodemo.merckgroup.com</li>
           <li><strong>Deeplink</strong> öffnet PasskeyGuard App</li>
-          <li><strong>App</strong> navigiert zu me.merckgroup.com/fidoregister</li>
+          <li><strong>App</strong> navigiert zu fidodemo.merckgroup.com/</li>
           <li><strong>FIDO Registration</strong> läuft in der App</li>
         </ol>
         
@@ -111,7 +111,7 @@
         <strong>🎯 Test-Szenarien:</strong><br>
         • <strong>Registration:</strong> Simuliert me.merckgroup.com Entry Point<br>
         • <strong>Auth (Non-FIDO):</strong> Automatische App-Weiterleitung<br><br>
-        <strong>Deeplink Format:</strong> passkeyguard://open?url=https://me.merckgroup.com/fidoregister
+        <strong>Deeplink Format:</strong> passkeyguard://open?url=https://fidodemo.merckgroup.com/
       </div>
     </div>
 
@@ -138,7 +138,7 @@
         updateStatus('📋 <strong>Szenario 1: Registration Start</strong><br>🚀 Starte FIDO-Registrierung über PasskeyGuard...', 'info');
 
         // Erstelle den spezifischen Deeplink für FIDO Demo
-        const targetUrl = 'https://me.merckgroup.com/fidodemo';
+        const targetUrl = 'https://fidodemo.merckgroup.com/';
         const deeplink = `passkeyguard://open?url=${encodeURIComponent(targetUrl)}`;
         
         updateStatus(`
@@ -170,7 +170,7 @@
 
         // Für Authentication können wir auch zur fidodemo URL weiterleiten
         // oder eine spezielle Auth-URL verwenden
-        const targetUrl = 'https://me.merckgroup.com/fidodemo'; // oder fidoauth
+        const targetUrl = 'https://fidodemo.merckgroup.com/'; // oder fidoauth
         const deeplink = `passkeyguard://open?url=${encodeURIComponent(targetUrl)}`;
         
         updateStatus(`
