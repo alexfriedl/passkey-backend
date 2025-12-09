@@ -68,20 +68,20 @@
       <h1>FIDO Demo - PasskeyGuard</h1>
 
       <div class="step">
-        <h3>📋 Szenario 1: Registration Start</h3>
+        <h3>Szenario 1: Registration Start</h3>
         <p>Starte FIDO-Registrierung - simuliert me.merckgroup.com Entry Point</p>
         <input type="text" id="username-register" placeholder="Username..." />
         <button class="deeplink-button" onclick="startFidoRegistration()">
-          🚀 FIDO Registrierung starten
+          FIDO Registrierung starten
         </button>
       </div>
 
       <div class="step">
-        <h3>🔐 Szenario 2: Authentication (Non-FIDO Browser)</h3>
+        <h3>Szenario 2: Authentication (Non-FIDO Browser)</h3>
         <p>Authentifizierung in Browser ohne FIDO-Support</p>
         <input type="text" id="username-auth" placeholder="Username..." />
         <button class="deeplink-button" onclick="authenticateViaApp()">
-          🔓 Via PasskeyGuard authentifizieren
+          Via PasskeyGuard authentifizieren
         </button>
       </div>
 
@@ -89,7 +89,7 @@
 
       <div class="step">
         <h3>Flow Explanation</h3>
-        <h4>📋 Szenario 1: Registration Start</h4>
+        <h4>Szenario 1: Registration Start</h4>
         <ol>
           <li><strong>User</strong> startet auf fidodemo.merckgroup.com</li>
           <li><strong>Deeplink</strong> öffnet PasskeyGuard App</li>
@@ -97,7 +97,7 @@
           <li><strong>FIDO Registration</strong> läuft in der App</li>
         </ol>
         
-        <h4>🔐 Szenario 2: Authentication (Non-FIDO Browser)</h4>
+        <h4>Szenario 2: Authentication (Non-FIDO Browser)</h4>
         <ol>
           <li><strong>User</strong> versucht Login in Browser ohne FIDO</li>
           <li><strong>Website</strong> erkennt: Kein FIDO-Support</li>
@@ -108,7 +108,7 @@
       </div>
 
       <div class="highlight">
-        <strong>🎯 Test-Szenarien:</strong><br>
+        <strong>Test-Szenarien:</strong><br>
         • <strong>Registration:</strong> Simuliert me.merckgroup.com Entry Point<br>
         • <strong>Auth (Non-FIDO):</strong> Automatische App-Weiterleitung<br><br>
         <strong>Deeplink Format:</strong> passkeyguard://open?url=https://fidodemo.merckgroup.com/
@@ -131,23 +131,23 @@
       function startFidoRegistration() {
         const username = document.getElementById('username-register').value;
         if (!username) {
-          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          updateStatus('Bitte Benutzername eingeben!', 'error');
           return;
         }
 
-        updateStatus('📋 <strong>Szenario 1: Registration Start</strong><br>🚀 Starte FIDO-Registrierung über PasskeyGuard...', 'info');
+        updateStatus('<strong>Szenario 1: Registration Start</strong><br>Starte FIDO-Registrierung über PasskeyGuard...', 'info');
 
         // Erstelle den spezifischen Deeplink für FIDO Demo
         const targetUrl = 'https://fidodemo.merckgroup.com/';
         const deeplink = `passkeyguard://open?url=${encodeURIComponent(targetUrl)}`;
         
         updateStatus(`
-          📋 <strong>Szenario 1: Registration Start</strong><br>
-          🔗 <strong>FIDO Deeplink generiert:</strong><br>
+          <strong>Szenario 1: Registration Start</strong><br>
+          <strong>FIDO Deeplink generiert:</strong><br>
           <code>${deeplink}</code><br><br>
-          📱 <strong>Ziel:</strong> ${targetUrl}<br>
-          👤 <strong>Username:</strong> ${username}<br><br>
-          💡 <em>Dies simuliert den Entry Point von me.merckgroup.com</em><br>
+          <strong>Ziel:</strong> ${targetUrl}<br>
+          <strong>Username:</strong> ${username}<br><br>
+          <em>Dies simuliert den Entry Point von me.merckgroup.com</em><br>
           <em>PasskeyGuard App wird geöffnet...</em>
         `, 'success');
 
@@ -157,13 +157,13 @@
           
           // Fallback nach 2 Sekunden wenn App nicht öffnet
           setTimeout(() => {
-            updateStatus('⚠️ PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            updateStatus('PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
             setTimeout(() => {
               window.location.href = targetUrl;
             }, 1000);
           }, 2000);
         } catch (error) {
-          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
+          updateStatus('Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
           setTimeout(() => {
             window.location.href = targetUrl;
           }, 1000);
@@ -173,11 +173,11 @@
       function authenticateViaApp() {
         const username = document.getElementById('username-auth').value;
         if (!username) {
-          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          updateStatus('Bitte Benutzername eingeben!', 'error');
           return;
         }
 
-        updateStatus('🔐 <strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>🔓 Starte Authentifizierung über PasskeyGuard...', 'info');
+        updateStatus('<strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>Starte Authentifizierung über PasskeyGuard...', 'info');
 
         // Für Authentication können wir auch zur fidodemo URL weiterleiten
         // oder eine spezielle Auth-URL verwenden
@@ -185,12 +185,12 @@
         const deeplink = `passkeyguard://open?url=${encodeURIComponent(targetUrl)}`;
         
         updateStatus(`
-          🔐 <strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>
-          🔗 <strong>Auth Deeplink generiert:</strong><br>
+          <strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>
+          <strong>Auth Deeplink generiert:</strong><br>
           <code>${deeplink}</code><br><br>
-          📱 <strong>Ziel:</strong> ${targetUrl}<br>
-          👤 <strong>Username:</strong> ${username}<br><br>
-          💡 <em>Dies simuliert Authentication in einem Browser ohne FIDO-Support</em><br>
+          <strong>Ziel:</strong> ${targetUrl}<br>
+          <strong>Username:</strong> ${username}<br><br>
+          <em>Dies simuliert Authentication in einem Browser ohne FIDO-Support</em><br>
           <em>PasskeyGuard App wird geöffnet...</em>
         `, 'success');
 
@@ -200,13 +200,13 @@
           
           // Fallback nach 2 Sekunden wenn App nicht öffnet
           setTimeout(() => {
-            updateStatus('⚠️ PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            updateStatus('PasskeyGuard App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
             setTimeout(() => {
               window.location.href = targetUrl;
             }, 1000);
           }, 2000);
         } catch (error) {
-          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
+          updateStatus('Fehler beim Öffnen der PasskeyGuard App. Weiterleitung zur Web-Version...', 'error');
           setTimeout(() => {
             window.location.href = targetUrl;
           }, 1000);
@@ -217,7 +217,7 @@
       window.addEventListener('focus', function() {
         const urlParams = new URLSearchParams(window.location.search);
         if (urlParams.get('returned') === 'true') {
-          updateStatus('✅ Zurück von PasskeyGuard App! FIDO-Registrierung abgeschlossen.', 'success');
+          updateStatus('Zurück von PasskeyGuard App! FIDO-Registrierung abgeschlossen.', 'success');
         }
       });
 
