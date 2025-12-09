@@ -168,9 +168,9 @@
 
         updateStatus('🔐 <strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>🔓 Starte Authentifizierung über PasskeyGuard...', 'info');
 
-        // Für Authentication können wir auch zur fidoregister URL weiterleiten
+        // Für Authentication können wir auch zur fidodemo URL weiterleiten
         // oder eine spezielle Auth-URL verwenden
-        const targetUrl = 'https://me.merckgroup.com/fidoregister'; // oder fidoauth
+        const targetUrl = 'https://me.merckgroup.com/fidodemo'; // oder fidoauth
         const deeplink = `passkeyguard://open?url=${encodeURIComponent(targetUrl)}`;
         
         updateStatus(`
