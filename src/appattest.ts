@@ -45,7 +45,7 @@ router.get("/challenge", async (req: any, res: any) => {
   const nonceB64u = base64url(nonce);
   
   // Speichere mit appattest-Präfix, um Konflikte mit WebAuthn zu vermeiden
-  storeChallenge(`appattest:${username}`, nonceB64u);
+  await storeChallenge(`appattest:${username}`, nonceB64u);
   
   res.json({ challenge: nonceB64u });
 });

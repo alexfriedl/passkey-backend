@@ -27,9 +27,31 @@
     <div id="debugLog"></div>
 
     <script>
+      // Store DCAppAttest data when received from iOS
+      let pendingDCAppAttestData = null;
+      
+      // Listen for DCAppAttest data from iOS app
+      window.addEventListener('message', function(event) {
+        logDebug('Received message event: ' + JSON.stringify(event.data));
+        
+        if (event.data && event.data.type === 'dcAppAttestData') {
+          pendingDCAppAttestData = event.data.dcAppAttest;
+          logDebug('Stored DCAppAttest data from iOS app');
+          logDebug(JSON.stringify(pendingDCAppAttestData, null, 2));
+        }
+      });
+      
       // Auto-start registration if opened from app
       window.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
+        
+        // Check if we have credential data from PasskeyGuard
+        if (urlParams.get('credential') && urlParams.get('source') === 'passkeyguard') {
+          logDebug('📱 Received credential data from PasskeyGuard!');
+          handlePasskeyGuardCredential(urlParams.get('credential'));
+          return;
+        }
+        
         if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
           // Auto-start registration when opened from PasskeyGuard app
           setTimeout(() => {
@@ -37,6 +59,72 @@
           }, 1000);
         }
       });
+      
+      // Handle credential data from PasskeyGuard
+      async function handlePasskeyGuardCredential(base64Credential) {
+        try {
+          logDebug('🔐 Processing PasskeyGuard credential...');
+          
+          // Decode base64 credential
+          const credentialJson = atob(decodeURIComponent(base64Credential));
+          const credentialData = JSON.parse(credentialJson);
+          
+          logDebug('📦 Credential data received:');
+          logDebug(JSON.stringify(credentialData, null, 2));
+          
+          const { credentialId, attestationObject, clientDataJSON, username } = credentialData;
+          
+          // Update UI
+          document.getElementById('username').value = username;
+          document.getElementById('status').textContent = 'PasskeyGuard-Daten empfangen, sende an Server...';
+          
+          // Prepare credential for backend
+          const credential = {
+            id: credentialId,
+            rawId: credentialId, // Extension sends UUID as string
+            response: {
+              attestationObject: attestationObject,
+              clientDataJSON: clientDataJSON
+            },
+            type: 'public-key'
+          };
+          
+          // Send to backend
+          const API_URL = "/api";
+          logDebug('📤 Sending credential to backend /api/register/verify');
+          
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: username, 
+              credential: credential,
+              platform: 'ios-extension-redirect'
+            })
+          });
+          
+          const verifyResult = await verifyRes.json();
+          logDebug('📥 Backend response:');
+          logDebug(JSON.stringify(verifyResult, null, 2));
+          
+          if (verifyResult.success) {
+            document.getElementById('status').textContent = '✅ Registrierung erfolgreich!';
+            logDebug('🎉 Registration successful via PasskeyGuard redirect!');
+            
+            // Optional: Redirect or show success
+            setTimeout(() => {
+              window.location.href = '/success.html';
+            }, 2000);
+          } else {
+            document.getElementById('status').textContent = '❌ Registrierung fehlgeschlagen: ' + (verifyResult.error || 'Unbekannter Fehler');
+            logDebug('❌ Registration failed: ' + (verifyResult.error || 'Unknown error'));
+          }
+          
+        } catch (error) {
+          logDebug('❌ Error processing PasskeyGuard credential: ' + error.message);
+          document.getElementById('status').textContent = '❌ Fehler: ' + error.message;
+        }
+      }
 
       // Hilfsfunktionen zur Umwandlung
       function arrayBufferToBase64(buffer) {
@@ -168,6 +256,66 @@
           return;
         }
 
+        // For iOS PasskeyGuard: Wait for DCAppAttest data if credential is from iOS
+        let modifiedClientDataJSON = null;
+        const isPasskeyGuardIOS = navigator.userAgent.includes('PasskeyGuard') || urlParams.get('hw') === 'true';
+        
+        if (isPasskeyGuardIOS) {
+          logDebug("PasskeyGuard iOS detected - waiting for DCAppAttest data...");
+          
+          // Create a promise to wait for DCAppAttest data
+          const waitForDCAppAttest = new Promise((resolve) => {
+            // Set a timeout in case data doesn't arrive
+            const timeout = setTimeout(() => {
+              logDebug("DCAppAttest timeout - proceeding without it");
+              resolve(null);
+            }, 3000); // Wait max 3 seconds
+            
+            // Listen for DCAppAttest data
+            const handleMessage = (event) => {
+              if (event.data && event.data.type === 'dcAppAttestData') {
+                clearTimeout(timeout);
+                window.removeEventListener('message', handleMessage);
+                logDebug("DCAppAttest data received!");
+                resolve(event.data.dcAppAttest);
+              }
+            };
+            
+            window.addEventListener('message', handleMessage);
+            
+            // Also check if data is already available
+            if (pendingDCAppAttestData) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handleMessage);
+              resolve(pendingDCAppAttestData);
+            }
+          });
+          
+          // Wait for DCAppAttest data
+          const dcAppAttestInfo = await waitForDCAppAttest;
+          
+          if (dcAppAttestInfo) {
+            logDebug("Processing DCAppAttest injection...");
+            
+            // Decode the original clientDataJSON
+            const originalClientData = JSON.parse(
+              new TextDecoder().decode(
+                base64ToArrayBuffer(arrayBufferToBase64(credential.response.clientDataJSON))
+              )
+            );
+            
+            // Inject DCAppAttest into extensions
+            originalClientData.extensions = originalClientData.extensions || {};
+            originalClientData.extensions.dcAppAttest = dcAppAttestInfo;
+            
+            // Re-encode the modified clientDataJSON
+            modifiedClientDataJSON = btoa(JSON.stringify(originalClientData));
+            
+            logDebug("Injected DCAppAttest into clientDataJSON:");
+            logDebug(JSON.stringify(originalClientData, null, 2));
+          }
+        }
+        
         const credentialData = {
           id: credential.id,
           rawId: arrayBufferToBase64(credential.rawId),
@@ -175,7 +323,7 @@
             attestationObject: arrayBufferToBase64(
               credential.response.attestationObject
             ),
-            clientDataJSON: arrayBufferToBase64(
+            clientDataJSON: modifiedClientDataJSON || arrayBufferToBase64(
               credential.response.clientDataJSON
             ),
           },

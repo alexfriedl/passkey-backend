@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FIDO Demo - PasskeyGuard Integration</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 40px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .step {
+        margin: 20px 0;
+        padding: 15px;
+        border-left: 4px solid #007bff;
+        background: #f8f9fa;
+      }
+      button {
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 4px 8px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 5px;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      .deeplink-button {
+        background: #0056b3;
+      }
+      .deeplink-button:hover {
+        background: #1e7e34;
+      }
+      #status {
+        background: #f8f9fa;
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        margin: 20px 0;
+        border-radius: 4px;
+      }
+      .highlight {
+        background: #fff3cd;
+        padding: 15px;
+        border-radius: 4px;
+        margin: 15px 0;
+        border-left: 4px solid #ffc107;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>FIDO Demo - Detached Authentication</h1>
+
+      <div class="step">
+        <h3>Deeplink Schema</h3>
+        <p>Wähle das URL-Schema für die Deeplinks</p>
+        <select id="schema-select">
+          <option value="passkeyguard">passkeyguard://</option>
+          <option value="detachedauth">detachedauth://</option>
+        </select>
+      </div>
+
+      <div class="step">
+        <h3>Szenario 1: Registration Start</h3>
+        <p>Starte FIDO-Registrierung - simuliert me.merckgroup.com Entry Point</p>
+        <input type="text" id="username-register" placeholder="Username..." />
+        <button class="deeplink-button" onclick="startFidoRegistration()">
+          FIDO Registrierung starten
+        </button>
+      </div>
+
+      <div class="step">
+        <h3>Szenario 2: Authentication (Non-FIDO Browser)</h3>
+        <p>Authentifizierung in Browser ohne FIDO-Support</p>
+        <input type="text" id="username-auth" placeholder="Username..." />
+        <button class="deeplink-button" onclick="authenticateViaApp()">
+          Via App authentifizieren
+        </button>
+      </div>
+
+      <div id="status"></div>
+
+      <div class="step">
+        <h3>Flow Explanation</h3>
+        <h4>Szenario 1: Registration Start</h4>
+        <ol>
+          <li><strong>User</strong> startet auf fidodemo.merckgroup.com</li>
+          <li><strong>Deeplink</strong> öffnet App</li>
+          <li><strong>App</strong> navigiert zu me.merckgroup.com/fidoregister</li>
+          <li><strong>FIDO Registration</strong> läuft in der App</li>
+        </ol>
+        
+        <h4>Szenario 2: Authentication (Non-FIDO Browser)</h4>
+        <ol>
+          <li><strong>User</strong> versucht Login in Browser ohne FIDO</li>
+          <li><strong>Website</strong> erkennt: Kein FIDO-Support</li>
+          <li><strong>Automatischer Deeplink</strong> zur App</li>
+          <li><strong>App</strong> navigiert zu fidodemo.merckgroup.com</li>
+          <li><strong>Authentication</strong> läuft in der App</li>
+          <li><strong>Rückleitung</strong> zum Browser nach Success</li>
+        </ol>
+      </div>
+
+      <div class="highlight">
+        <strong>Test-Szenarien:</strong><br>
+        • <strong>Registration:</strong> Simuliert me.merckgroup.com Entry Point<br>
+        • <strong>Auth (Non-FIDO):</strong> Automatische App-Weiterleitung<br><br>
+        <strong>Deeplinks:</strong><br>
+        • <strong>Registration:</strong> [schema]://open?url=https://me.merckgroup.com/fidoregister<br>
+        • <strong>Authentication:</strong> [schema]://open?url=https://fidodemo.merckgroup.com<br>
+        <em>Schema wird über Dropdown ausgewählt</em>
+      </div>
+    </div>
+
+    <script>
+      function updateStatus(message, type = 'info') {
+        const status = document.getElementById('status');
+        const colors = {
+          info: '#d1ecf1',
+          success: '#d4edda',
+          error: '#f8d7da',
+          warning: '#fff3cd'
+        };
+        status.style.background = colors[type] || colors.info;
+        status.innerHTML = message;
+      }
+
+      function startFidoRegistration() {
+        const username = document.getElementById('username-register').value;
+        if (!username) {
+          updateStatus('Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        const schema = document.getElementById('schema-select').value;
+        updateStatus('<strong>Szenario 1: Registration Start</strong><br>Starte FIDO-Registrierung über App...', 'info');
+
+        // Erstelle den spezifischen Deeplink für FIDO Demo
+        const targetUrl = 'https://me.merckgroup.com/fidoregister';
+        const deeplink = `${schema}://open?url=${encodeURIComponent(targetUrl)}`;
+        
+        updateStatus(`
+          <strong>Szenario 1: Registration Start</strong><br>
+          <strong>FIDO Deeplink generiert:</strong><br>
+          <code>${deeplink}</code><br><br>
+          <strong>Ziel:</strong> ${targetUrl}<br>
+          <strong>Username:</strong> ${username}<br><br>
+          <em>Dies simuliert den Entry Point von me.merckgroup.com</em><br>
+          <em>App wird geöffnet...</em>
+        `, 'success');
+
+        // Versuche die App zu öffnen mit Fallback
+        try {
+          window.location.href = deeplink;
+          
+          // Fallback nach 2 Sekunden wenn App nicht öffnet
+          setTimeout(() => {
+            updateStatus('App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 1000);
+          }, 2000);
+        } catch (error) {
+          updateStatus('Fehler beim Öffnen der App. Weiterleitung zur Web-Version...', 'error');
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1000);
+        }
+      }
+
+      function authenticateViaApp() {
+        const username = document.getElementById('username-auth').value;
+        if (!username) {
+          updateStatus('Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        const schema = document.getElementById('schema-select').value;
+        updateStatus('<strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>Starte Authentifizierung über App...', 'info');
+
+        // Für Authentication können wir auch zur fidodemo URL weiterleiten
+        // oder eine spezielle Auth-URL verwenden
+        const targetUrl = 'https://fidodemo.merckgroup.com'; // oder fidoauth
+        const deeplink = `${schema}://open?url=${encodeURIComponent(targetUrl)}`;
+        
+        updateStatus(`
+          <strong>Szenario 2: Authentication (Non-FIDO Browser)</strong><br>
+          <strong>Auth Deeplink generiert:</strong><br>
+          <code>${deeplink}</code><br><br>
+          <strong>Ziel:</strong> ${targetUrl}<br>
+          <strong>Username:</strong> ${username}<br><br>
+          <em>Dies simuliert Authentication in einem Browser ohne FIDO-Support</em><br>
+          <em>App wird geöffnet...</em>
+        `, 'success');
+
+        // Versuche die App zu öffnen mit Fallback
+        try {
+          window.location.href = deeplink;
+          
+          // Fallback nach 2 Sekunden wenn App nicht öffnet
+          setTimeout(() => {
+            updateStatus('App nicht gefunden. Weiterleitung zur Web-Version...', 'warning');
+            setTimeout(() => {
+              window.location.href = targetUrl;
+            }, 1000);
+          }, 2000);
+        } catch (error) {
+          updateStatus('Fehler beim Öffnen der App. Weiterleitung zur Web-Version...', 'error');
+          setTimeout(() => {
+            window.location.href = targetUrl;
+          }, 1000);
+        }
+      }
+
+      // Prüfe ob wir von der App zurückgekommen sind
+      window.addEventListener('focus', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('returned') === 'true') {
+          updateStatus('Zurück von App! FIDO-Registrierung abgeschlossen.', 'success');
+        }
+      });
+
+      // Initial status
+      updateStatus('Bereit für FIDO-Registrierung über App', 'info');
+    </script>
+  </body>
+</html>

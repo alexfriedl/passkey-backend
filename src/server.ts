@@ -10,6 +10,7 @@ import {
   verifyRegistration,
   generateAuthenticationOptions,
   verifyAuthentication,
+  base64UrlToArrayBuffer,
 } from "./webauthn";
 import path from "path";
 import { connectDB } from "./mongodb";
@@ -40,11 +41,6 @@ app.use(
   })
 );
 
-connectDB().then(() => {
-  app.listen(MONGOPORT, () => {
-    console.log(`Server läuft auf http://localhost:${MONGOPORT}`);
-  });
-});
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
@@ -69,6 +65,14 @@ app.post("/api/register/combined", async (req: any, res: any) => {
   try {
     console.log("\n========== COMBINED REGISTRATION START ==========");
     console.log("Timestamp:", new Date().toISOString());
+    
+    // Helper function to format Buffer data
+    const formatBuffer = (buffer: Buffer, maxBytes: number = 50): string => {
+      if (!Buffer.isBuffer(buffer)) return 'Not a buffer';
+      const hex = buffer.slice(0, maxBytes).toString('hex');
+      const truncated = buffer.length > maxBytes ? `... (${buffer.length - maxBytes} more bytes)` : '';
+      return `${hex}${truncated}`;
+    };
     
     const { username, passkey, appAttest, platform } = req.body;
     
@@ -197,6 +201,11 @@ app.post("/api/register/combined", async (req: any, res: any) => {
       message: appAttest ? "Combined registration successful" : "Passkey registration successful"
     };
     
+    // Log response size info instead of full data
+    console.log("\n📦 Response summary:");
+    console.log(`  attestationObject: ${response.passkey.attestationObject?.length || 0} chars`);
+    console.log(`  clientDataJSON: ${response.passkey.clientDataJSON?.length || 0} chars`);
+    
     // Add App Attest data only if it was verified
     if (appAttestResult) {
       response.appAttest = {
@@ -256,7 +265,37 @@ app.post("/api/register", async (req: any, res: any) => {
  */
 app.post("/api/register/verify", async (req: any, res: any) => {
   try {
-    // console.log("[REGISTER/VERIFY] Request received:", req.body);
+    // DEBUG: Log complete request from iOS/Safari
+    console.log("🔍 DEBUG: Complete request received at /api/register/verify:");
+    console.log("🔍 DEBUG: Headers:", JSON.stringify(req.headers, null, 2));
+    console.log("🔍 DEBUG: Body:", JSON.stringify(req.body, null, 2));
+    
+    // Helper function to format Buffer data
+    const formatBuffer = (buffer: Buffer, maxBytes: number = 50): string => {
+      if (!Buffer.isBuffer(buffer)) return 'Not a buffer';
+      const hex = buffer.slice(0, maxBytes).toString('hex');
+      const truncated = buffer.length > maxBytes ? `... (${buffer.length - maxBytes} more bytes)` : '';
+      return `${hex}${truncated}`;
+    };
+    
+    // Helper function to format object with Buffers
+    const formatObjectWithBuffers = (obj: any, indent: number = 0): string => {
+      const spaces = ' '.repeat(indent);
+      let result = '';
+      
+      for (const [key, value] of Object.entries(obj)) {
+        if (Buffer.isBuffer(value)) {
+          result += `${spaces}${key}: Buffer(${value.length} bytes) [${formatBuffer(value, 32)}]\n`;
+        } else if (typeof value === 'object' && value !== null && !Array.isArray(value)) {
+          result += `${spaces}${key}:\n${formatObjectWithBuffers(value, indent + 2)}`;
+        } else if (Array.isArray(value)) {
+          result += `${spaces}${key}: Array(${value.length} items)\n`;
+        } else {
+          result += `${spaces}${key}: ${JSON.stringify(value)}\n`;
+        }
+      }
+      return result;
+    };
 
     const { username, credential, platform } = req.body;
     if (!username || !credential) {
@@ -271,6 +310,93 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     console.log(
       `[REGISTER/VERIFY] Starte Verifikation für Benutzer: ${username}`
     );
+    
+    // DEBUG: Log credential details
+    console.log("🔍 DEBUG: Credential structure received from iOS:");
+    console.log("🔍 DEBUG: - ID:", credential.id);
+    console.log("🔍 DEBUG: - Raw ID:", credential.rawId);
+    console.log("🔍 DEBUG: - Type:", credential.type);
+    console.log("🔍 DEBUG: - Response object keys:", Object.keys(credential.response || {}));
+    
+    if (credential.response) {
+      console.log("🔍 DEBUG: - clientDataJSON (base64):", credential.response.clientDataJSON?.substring(0, 100) + "...");
+      console.log("🔍 DEBUG: - attestationObject (base64):", credential.response.attestationObject?.substring(0, 100) + "...");
+      console.log("🔍 DEBUG: - attestationObject size:", credential.response.attestationObject?.length || 0);
+      
+      // Try to decode clientDataJSON
+      try {
+        const clientDataBuffer = Buffer.from(credential.response.clientDataJSON, 'base64');
+        const clientData = JSON.parse(clientDataBuffer.toString());
+        console.log("🔍 DEBUG: Decoded clientDataJSON:", JSON.stringify(clientData, null, 2));
+      } catch (e) {
+        console.log("🔍 DEBUG: Could not decode clientDataJSON:", e);
+      }
+      
+      // Try to decode attestationObject structure
+      try {
+        const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
+        console.log("🔍 DEBUG: AttestationObject buffer size:", attestationBuffer.length);
+        console.log("🔍 DEBUG: AttestationObject hex preview:", formatBuffer(attestationBuffer, 50));
+        
+        // Import cbor at the top of the function if needed
+        const cbor = require('cbor');
+        
+        // Decode CBOR attestation object
+        try {
+          const attestationObject = cbor.decodeFirstSync(attestationBuffer);
+          console.log("\n🔍 DEBUG: Decoded attestation object:");
+          console.log("  fmt (attestation format):", attestationObject.fmt);
+          console.log("  authData:", attestationObject.authData ? `Buffer(${attestationObject.authData.length} bytes)` : 'N/A');
+          
+          // Log attStmt structure concisely
+          console.log("\n🔍 DEBUG: attStmt (attestation statement):");
+          if (attestationObject.attStmt) {
+            console.log(formatObjectWithBuffers(attestationObject.attStmt, 2));
+            
+            // Special check for dcAppAttest
+            if ('dcAppAttest' in attestationObject.attStmt) {
+              console.log("\n✅ dcAppAttest field found in attStmt!");
+              const dcAppAttest = attestationObject.attStmt.dcAppAttest;
+              
+              if (Buffer.isBuffer(dcAppAttest)) {
+                console.log(`  Size: ${dcAppAttest.length} bytes`);
+                console.log(`  Preview: ${formatBuffer(dcAppAttest, 32)}`);
+                
+                // Try to parse dcAppAttest as CBOR if it's large enough
+                if (dcAppAttest.length > 100) {
+                  try {
+                    const dcAppAttestDecoded = cbor.decodeFirstSync(dcAppAttest);
+                    console.log("  Decoded dcAppAttest structure:");
+                    console.log(formatObjectWithBuffers(dcAppAttestDecoded, 4));
+                  } catch (e) {
+                    console.log("  dcAppAttest is not CBOR encoded, might be raw certificate data");
+                  }
+                }
+              }
+            } else {
+              console.log("\n❌ dcAppAttest field NOT found in attStmt");
+              console.log("  Available fields:", Object.keys(attestationObject.attStmt).join(', '));
+            }
+          } else {
+            console.log("  attStmt is null or undefined");
+          }
+          
+          // Log attestation format check
+          if (attestationObject.fmt === 'none') {
+            console.log("\n✅ Attestation format is 'none' (expected for passkey with embedded App Attest)");
+          } else if (attestationObject.fmt === 'apple-appattest') {
+            console.log("\n✅ Attestation format is 'apple-appattest'");
+          } else {
+            console.log("\n⚠️ Unexpected attestation format:", attestationObject.fmt);
+          }
+          
+        } catch (cborError) {
+          console.log("🔍 DEBUG: Failed to decode attestation object as CBOR:", cborError);
+        }
+      } catch (e) {
+        console.log("🔍 DEBUG: Could not decode attestationObject:", e);
+      }
+    }
     
     try {
       // Try standard verification first
@@ -299,7 +425,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         console.log("🍎 Standard verification failed - trying iOS-compatible approach");
         
         // Get the stored challenge
-        const storedChallenge = getChallenge(username);
+        const storedChallenge = await getChallenge(username);
         if (!storedChallenge) {
           console.error("No challenge found for user:", username);
           return res.status(400).json({ error: "Challenge not found" });
@@ -417,6 +543,44 @@ app.post("/api/login", async (req: any, res: any) => {
  * iOS-App sendet: { username: "alice", assertion: {...}, publicKey: "abc123..." }
  * Server überprüft die Authentifizierung
  */
+// Convert base64 strings back to ArrayBuffers for fido2-lib
+function convertAssertionToArrayBuffers(assertion: any) {
+  console.log('Converting assertion from base64 strings to ArrayBuffers:', {
+    id: assertion.id,
+    rawId: assertion.rawId,
+    type: assertion.type,
+    response: {
+      authenticatorData: assertion.response.authenticatorData?.substring(0, 20) + '...',
+      clientDataJSON: assertion.response.clientDataJSON?.substring(0, 20) + '...',
+      signature: assertion.response.signature?.substring(0, 20) + '...',
+      userHandle: assertion.response.userHandle,
+    }
+  });
+  
+  const converted = {
+    id: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : assertion.id,
+    rawId: assertion.rawId ? base64UrlToArrayBuffer(assertion.rawId) : base64UrlToArrayBuffer(assertion.id),
+    response: {
+      authenticatorData: base64UrlToArrayBuffer(assertion.response.authenticatorData),
+      clientDataJSON: base64UrlToArrayBuffer(assertion.response.clientDataJSON),
+      signature: base64UrlToArrayBuffer(assertion.response.signature),
+      userHandle: assertion.response.userHandle ? base64UrlToArrayBuffer(assertion.response.userHandle) : null,
+    },
+    type: assertion.type,
+  };
+  
+  console.log('Converted assertion types:', {
+    id: converted.id?.constructor?.name,
+    rawId: converted.rawId?.constructor?.name,
+    authenticatorData: converted.response.authenticatorData?.constructor?.name,
+    clientDataJSON: converted.response.clientDataJSON?.constructor?.name,
+    signature: converted.response.signature?.constructor?.name,
+    userHandle: converted.response.userHandle?.constructor?.name,
+  });
+  
+  return converted;
+}
+
 app.post("/api/login/verify", async (req: any, res: any) => {
   try {
     const { username, assertion, publicKey } = req.body;
@@ -425,7 +589,11 @@ app.post("/api/login/verify", async (req: any, res: any) => {
         .status(400)
         .json({ error: "Username und Assertion sind erforderlich" });
     }
-    const result = await verifyAuthentication(assertion, publicKey, username);
+    
+    // Convert base64 strings back to ArrayBuffers for fido2-lib
+    const convertedAssertion = convertAssertionToArrayBuffers(assertion);
+    
+    const result = await verifyAuthentication(convertedAssertion, publicKey, username);
     res.json({ success: true, result });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Authentifizierung:", error);
@@ -459,6 +627,8 @@ app.post("/api/debugging", async (req: any, res: any) => {
 });
 
 // Server starten
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server läuft auf Port ${PORT}`);
+connectDB().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Server läuft auf Port ${PORT}`);
+  });
 });

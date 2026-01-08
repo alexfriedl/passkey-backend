@@ -197,8 +197,19 @@ export async function verifyRegistration(
   credential: any,
   username: string
 ): Promise<Fido2AttestationResult> {
+  console.log("\n🔍 DEBUG: === verifyRegistration START ===");
+  console.log("🔍 DEBUG: Username:", username);
+  console.log("🔍 DEBUG: Credential keys:", Object.keys(credential));
+  console.log("🔍 DEBUG: Response keys:", credential.response ? Object.keys(credential.response) : 'No response object');
+  
+  // Log raw attestation object
+  if (credential.response && credential.response.attestationObject) {
+    console.log("🔍 DEBUG: Raw attestationObject base64 length:", credential.response.attestationObject.length);
+    console.log("🔍 DEBUG: Raw attestationObject base64 (first 200 chars):", credential.response.attestationObject.substring(0, 200) + "...");
+  }
+  
   username = username.trim();
-  const challengeBase64 = getChallenge(username);
+  const challengeBase64 = await getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
@@ -209,6 +220,33 @@ export async function verifyRegistration(
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
 
+  // Add detailed logging before calling fido2.attestationResult
+  console.log("\n🔍 DEBUG: About to call fido2.attestationResult with:");
+  console.log("🔍 DEBUG: - challenge:", challengeBase64);
+  console.log("🔍 DEBUG: - origin:", process.env.ORIGIN || `https://${rpId}`);
+  console.log("🔍 DEBUG: - factor:", "either");
+  
+  // Decode and log attestation object before passing to fido2-lib
+  if (credential.response && credential.response.attestationObject) {
+    try {
+      const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
+      const attestationObject = cbor.decodeFirstSync(attestationBuffer);
+      
+      console.log("\n🔍 DEBUG: Pre-fido2-lib attestation object analysis:");
+      console.log("🔍 DEBUG: - fmt:", attestationObject.fmt);
+      console.log("🔍 DEBUG: - attStmt keys:", Object.keys(attestationObject.attStmt || {}));
+      
+      if (attestationObject.attStmt && attestationObject.attStmt.dcAppAttest) {
+        console.log("🔍 DEBUG: ✅ dcAppAttest present before fido2-lib processing");
+        console.log("🔍 DEBUG: - dcAppAttest size:", attestationObject.attStmt.dcAppAttest.length, "bytes");
+      } else {
+        console.log("🔍 DEBUG: ❌ dcAppAttest NOT present before fido2-lib processing");
+      }
+    } catch (e) {
+      console.log("🔍 DEBUG: Could not pre-analyze attestation object:", e);
+    }
+  }
+  
   try {
     // Direkte Verifikation ohne Patching
     const attestationResult = await fido2.attestationResult(credential, {
@@ -264,7 +302,7 @@ export async function generateAuthenticationOptions(
   // Konvertiere die generierte Challenge in einen Base64URL-String
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
   console.log("Generierte Challenge (Base64URL):", challengeBase64);
-  storeChallenge(username, challengeBase64);
+  await storeChallenge(username, challengeBase64);
 
   // Suche in der Datenbank nach dem registrierten User
   const user = await User.findOne({ username });
@@ -305,21 +343,37 @@ export async function verifyAuthentication(
   publicKey: string,
   username: string
 ) {
-  const challengeBase64 = getChallenge(username);
+  const challengeBase64 = await getChallenge(username);
   if (!challengeBase64) {
     throw new Error("Challenge nicht gefunden oder abgelaufen.");
   }
-  deleteChallenge(username);
+  await deleteChallenge(username);
   const user = await User.findOne({ username });
   if (!user) {
     throw new Error("User not found.");
   }
+  
+  // Use publicKey from database if not provided in request
+  const userPublicKey = publicKey || user.publicKey;
+  if (!userPublicKey) {
+    throw new Error("PublicKey nicht gefunden.");
+  }
+  
   try {
+    console.log('fido2.assertionResult called with:', {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey: userPublicKey?.substring(0, 50) + '...',
+      prevCounter: user.counter,
+      userHandle: null,
+    });
+    
     const assertionResult = await fido2.assertionResult(assertion, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
       factor: "either",
-      publicKey,
+      publicKey: userPublicKey,
       prevCounter: user.counter,
       userHandle: null,
     });

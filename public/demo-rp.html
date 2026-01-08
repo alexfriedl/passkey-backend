@@ -32,7 +32,7 @@
         background: #007bff;
         color: white;
         border: none;
-        padding: 12px 24px;
+        padding: 4px 8px;
         border-radius: 4px;
         cursor: pointer;
         font-size: 16px;
@@ -42,7 +42,7 @@
         background: #0056b3;
       }
       .deeplink-button {
-        background: #28a745;
+        background: #0056b3;
       }
       .deeplink-button:hover {
         background: #1e7e34;
@@ -65,44 +65,78 @@
   </head>
   <body>
     <div class="container">
-      <h1>🔐 Demo RP - PasskeyGuard Integration</h1>
-      
-      <div class="highlight">
-        <strong>Hardware-bound Passkey Registration Demo</strong><br>
-        Diese Demo zeigt, wie eine RP-Website die PasskeyGuard App für hardware-gebundene Passkey-Registrierung verwenden kann.
-      </div>
+      <h1>PasskeyGuard with Deeplink</h1>
 
       <div class="step">
-        <h3>Schritt 1: Standard WebAuthn Registrierung</h3>
-        <p>Normale Passkey-Registrierung ohne PasskeyGuard App:</p>
-        <input type="text" id="username" placeholder="Benutzername eingeben..." />
-        <button onclick="standardRegister()">Standard Registrierung</button>
-      </div>
-
-      <div class="step">
-        <h3>Schritt 2: PasskeyGuard Hardware-bound Registrierung</h3>
-        <p>Registrierung mit DCAppAttest Hardware-Integrity Proof:</p>
-        <input type="text" id="username-hw" placeholder="Benutzername eingeben..." />
+        <h3>PasskeyGuard</h3>
+        <p>Register with DCAppAttest Hardware-Integrity Proof</p>
+        <input type="text" id="username-hw" placeholder="Username..." />
         <button class="deeplink-button" onclick="hardwareBoundRegister()">
-          🔒 Hardware-bound Registrierung
+          Register
+        </button>
+      </div>
+
+      <div class="step">
+        <h3>Authentication</h3>
+        <p>Authenticate with existing passkey</p>
+        <input type="text" id="username-auth" placeholder="Username..." />
+        <button class="deeplink-button" onclick="hardwareBoundAuthenticate()">
+          Authenticate
         </button>
       </div>
 
       <div id="status"></div>
 
       <div class="step">
-        <h3>Flow Erklärung</h3>
+        <h3>Flow Explanation</h3>
         <ol>
-          <li><strong>RP Website</strong> generiert Deeplink zur PasskeyGuard App</li>
-          <li><strong>PasskeyGuard App</strong> öffnet RP Website in SFSafariViewController</li>
-          <li><strong>WebAuthn Registrierung</strong> läuft im Main App Context (nicht Extension)</li>
-          <li><strong>DCAppAttest</strong> beweist Hardware-Integrität der App</li>
-          <li><strong>Deeplink zurück</strong> zur App nach erfolgreicher Registrierung</li>
+          <li><strong>RP website</strong> generates a deeplink to the PasskeyGuard app</li>
+          <li><strong>PasskeyGuard app</strong> opens the RP website in SFSafariViewController</li>
+          <li><strong>WebAuthn registration</strong> runs in the main app context (not the extension)</li>
+          <li><strong>DCAppAttest</strong> proves the app's hardware integrity</li>
+          <li><strong>Deeplink back</strong> to the app after successful registration</li>
         </ol>
       </div>
     </div>
 
     <script>
+      // Store for DCAppAttest data from iOS app
+      let pendingDCAppAttestData = null;
+      
+      // Listen for DCAppAttest data from iOS app via postMessage
+      window.addEventListener('message', function(event) {
+        console.log('[Demo-RP] Received message:', event.data);
+        
+        if (event.data && event.data.type === 'dcAppAttestData') {
+          pendingDCAppAttestData = event.data.dcAppAttest;
+          console.log('[Demo-RP] Stored DCAppAttest data from iOS app');
+          console.log(JSON.stringify(pendingDCAppAttestData, null, 2));
+          
+          updateStatus(`
+            ✅ <strong>DCAppAttest Daten empfangen!</strong><br>
+            KeyId: ${pendingDCAppAttestData.keyId}<br>
+            Platform: ${pendingDCAppAttestData.platform}
+          `, 'success');
+        }
+      });
+      
+      // Also listen for webkit message handler (iOS WKWebView)
+      if (window.webkit && window.webkit.messageHandlers) {
+        console.log('[Demo-RP] WebKit message handlers available');
+        
+        // Define global function for iOS to call
+        window.receiveDCAppAttestData = function(dcAppAttestData) {
+          console.log('[Demo-RP] Received DCAppAttest data from iOS:', dcAppAttestData);
+          pendingDCAppAttestData = dcAppAttestData;
+          updateStatus(`
+            ✅ <strong>DCAppAttest Daten von iOS empfangen!</strong><br>
+            KeyId: ${dcAppAttestData.keyId}<br>
+            Platform: ${dcAppAttestData.platform}<br>
+            Timestamp: ${new Date(dcAppAttestData.timestamp * 1000).toLocaleString()}
+          `, 'success');
+        };
+      }
+      
       function updateStatus(message, type = 'info') {
         const status = document.getElementById('status');
         const colors = {
@@ -141,8 +175,45 @@
         const currentOrigin = window.location.origin;
         const registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true`;
         
+        // If we have pending DCAppAttest data, include it in the URL
+        if (pendingDCAppAttestData) {
+          const dcAppAttestParam = encodeURIComponent(JSON.stringify(pendingDCAppAttestData));
+          registerUrl += `&dcAppAttest=${dcAppAttestParam}`;
+        }
+        
         // Deeplink to PasskeyGuard app
-        const deeplink = `passkeyguard-webauthn://?origin=${encodeURIComponent(registerUrl)}`;
+        const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}`;
+        
+        updateStatus(`
+          🚀 <strong>Deeplink generiert:</strong><br>
+          <code>${deeplink}</code><br><br>
+          <em>PasskeyGuard App wird geöffnet...</em>
+          ${pendingDCAppAttestData ? '<br>📎 DCAppAttest Daten angehängt' : ''}
+        `, 'success');
+
+        // Try to open the app
+        try {
+          window.location.href = deeplink;
+        } catch (error) {
+          updateStatus('❌ Fehler beim Öffnen der PasskeyGuard App. App installiert?', 'error');
+        }
+      }
+
+      function hardwareBoundAuthenticate() {
+        const username = document.getElementById('username-auth').value;
+        if (!username) {
+          updateStatus('❌ Bitte Benutzername eingeben!', 'error');
+          return;
+        }
+
+        updateStatus('🔐 Starte Hardware-bound Authentifizierung...', 'info');
+
+        // Create deeplink to PasskeyGuard app with RP origin
+        const currentOrigin = window.location.origin;
+        const authenticateUrl = `${currentOrigin}/login.html?username=${encodeURIComponent(username)}&hw=true`;
+        
+        // Deeplink to PasskeyGuard app
+        const deeplink = `passkeyguard://?origin=${encodeURIComponent(authenticateUrl)}`;
         
         updateStatus(`
           🚀 <strong>Deeplink generiert:</strong><br>
@@ -166,8 +237,98 @@
         }
       });
 
+      // Handle credential data from PasskeyGuard redirect
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Check if we have credential data from PasskeyGuard
+        if (urlParams.get('credential') && urlParams.get('source') === 'passkeyguard') {
+          console.log('[Demo-RP] 📱 Received credential data from PasskeyGuard!');
+          handlePasskeyGuardCredential(urlParams.get('credential'));
+        }
+      });
+
+      async function handlePasskeyGuardCredential(base64Credential) {
+        try {
+          console.log('[Demo-RP] 🔐 Processing PasskeyGuard credential...');
+          updateStatus('🔐 Processing PasskeyGuard credential...', 'info');
+          
+          // Decode base64 credential
+          const credentialJson = atob(decodeURIComponent(base64Credential));
+          const credentialData = JSON.parse(credentialJson);
+          
+          console.log('[Demo-RP] 📦 Credential data received:', credentialData);
+          
+          const { credentialId, attestationObject, clientDataJSON, username } = credentialData;
+          
+          updateStatus(`
+            ✅ <strong>PasskeyGuard Credential empfangen!</strong><br>
+            Username: ${username}<br>
+            Credential ID: ${credentialId.substring(0, 16)}...<br>
+            <br>
+            <em>Sende an Backend...</em>
+          `, 'success');
+          
+          // Prepare credential for backend
+          const credential = {
+            id: credentialId,
+            rawId: credentialId,
+            response: {
+              attestationObject: attestationObject,
+              clientDataJSON: clientDataJSON
+            },
+            type: 'public-key'
+          };
+          
+          // Send to backend
+          const API_URL = "/api";
+          console.log('[Demo-RP] 📤 Sending credential to backend /api/register/verify');
+          
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: username, 
+              credential: credential,
+              platform: 'ios-extension-redirect'
+            })
+          });
+          
+          const verifyResult = await verifyRes.json();
+          console.log('[Demo-RP] 📥 Backend response:', verifyResult);
+          
+          if (verifyResult.success) {
+            updateStatus(`
+              🎉 <strong>Registrierung erfolgreich!</strong><br>
+              Username: ${username}<br>
+              <br>
+              ✅ Passkey wurde erstellt<br>
+              ✅ DCAppAttest wurde verifiziert<br>
+              <br>
+              <em>Die Hardware-bound Registrierung ist abgeschlossen.</em>
+            `, 'success');
+          } else {
+            updateStatus(`
+              ❌ <strong>Registrierung fehlgeschlagen</strong><br>
+              ${verifyResult.error || 'Unbekannter Fehler'}<br>
+              <br>
+              <button onclick="location.reload()">Erneut versuchen</button>
+            `, 'error');
+          }
+          
+        } catch (error) {
+          console.error('[Demo-RP] ❌ Error processing PasskeyGuard credential:', error);
+          updateStatus(`
+            ❌ <strong>Fehler beim Verarbeiten der Credential</strong><br>
+            ${error.message}<br>
+            <br>
+            <button onclick="location.reload()">Erneut versuchen</button>
+          `, 'error');
+        }
+      }
+
       // Initial status
-      updateStatus('📱 Bereit für Passkey-Registrierung', 'info');
+      updateStatus('Bereit für Passkey-Registrierung', 'info');
     </script>
   </body>
 </html>
