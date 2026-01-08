@@ -20,20 +20,38 @@
     </style>
   </head>
   <body>
-    <h1>Android Passkey Registrierung</h1>
-    <input type="text" id="username" placeholder="Benutzername" />
-    <button onclick="register()">Registrieren</button>
+    <h1>Android Passkey</h1>
+
+    <div style="margin: 20px 0;">
+      <h3>Registrierung</h3>
+      <input type="text" id="username" placeholder="Benutzername" />
+      <button onclick="register()">Registrieren</button>
+      <button onclick="openAppForRegister()">🔒 Via App registrieren</button>
+    </div>
+
+    <div style="margin: 20px 0;">
+      <h3>Login</h3>
+      <input type="text" id="login-username" placeholder="Benutzername (optional)" />
+      <button onclick="loginWithPasskey()">Direkt einloggen</button>
+      <button onclick="openAppForLogin()">🔒 Via App einloggen</button>
+    </div>
+
     <pre id="status"></pre>
     <div id="debugLog"></div>
 
     <script>
-      // Auto-start registration if opened from Android app
+      // Auto-start wenn von Android App geöffnet
       window.addEventListener('DOMContentLoaded', function() {
         const urlParams = new URLSearchParams(window.location.search);
-        if (urlParams.get('android') === 'true' && urlParams.get('username')) {
-          // Auto-start registration when opened from Android app
+        if (urlParams.get('android') === 'true') {
           setTimeout(() => {
-            register();
+            if (urlParams.get('mode') === 'login') {
+              // Login-Modus: zeige verfügbare Passkeys
+              loginWithPasskey();
+            } else if (urlParams.get('username')) {
+              // Registrierung mit Benutzername
+              register();
+            }
           }, 1000);
         }
       });
@@ -83,6 +101,139 @@
       
       // Check on page load
       checkAndroidAttestationFlag();
+
+      // Deeplink-Funktionen für Android App
+      function openAppForRegister() {
+        const username = document.getElementById("username").value;
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+
+        const currentOrigin = window.location.origin;
+        const registerUrl = `${currentOrigin}/register-android.html?username=${encodeURIComponent(username)}&android=true`;
+
+        // Deeplink zur PasskeyGuard Android App
+        const deeplink = `passkeyguard://register?origin=${encodeURIComponent(registerUrl)}`;
+
+        logDebug("Öffne App für Registrierung: " + deeplink);
+        document.getElementById("status").textContent = "Öffne PasskeyGuard App...";
+        window.location.href = deeplink;
+      }
+
+      function openAppForLogin() {
+        const username = document.getElementById("login-username").value;
+        const currentOrigin = window.location.origin;
+        let loginUrl = `${currentOrigin}/register-android.html?android=true&mode=login`;
+
+        if (username) {
+          loginUrl += `&username=${encodeURIComponent(username)}`;
+        }
+
+        // Deeplink zur PasskeyGuard Android App für Login
+        const deeplink = `passkeyguard://login?origin=${encodeURIComponent(loginUrl)}`;
+
+        logDebug("Öffne App für Login: " + deeplink);
+        document.getElementById("status").textContent = "Öffne PasskeyGuard App...";
+        window.location.href = deeplink;
+      }
+
+      async function loginWithPasskey() {
+        const API_URL = "/api";
+
+        // Username aus Input oder URL-Parameter
+        let username = document.getElementById("login-username").value;
+        const urlParams = new URLSearchParams(window.location.search);
+        if (!username && urlParams.get('username')) {
+          username = urlParams.get('username');
+          document.getElementById("login-username").value = username;
+        }
+
+        document.getElementById("status").textContent = username
+          ? `Suche Passkeys für ${username}...`
+          : "Suche verfügbare Passkeys...";
+        logDebug(`Starte Login ${username ? 'für ' + username : 'mit Discoverable Credentials'}...`);
+
+        try {
+          // Hole Challenge vom Server (mit optionalem Username für allowCredentials)
+          const challengeRes = await fetch(`${API_URL}/login`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(username ? { username } : {}),
+          });
+          const challengeData = await challengeRes.json();
+          logDebug("Challenge erhalten: " + JSON.stringify(challengeData, null, 2));
+
+          document.getElementById("status").textContent = "Bitte wähle einen Passkey aus...";
+
+          // PublicKey Options aufbauen
+          const publicKeyOptions = {
+            challenge: base64ToArrayBuffer(challengeData.challenge),
+            rpId: challengeData.rpId || window.location.hostname,
+            userVerification: "preferred",
+          };
+
+          // Falls Server allowCredentials liefert, nutze diese zum Filtern
+          if (challengeData.allowCredentials && challengeData.allowCredentials.length > 0) {
+            publicKeyOptions.allowCredentials = challengeData.allowCredentials.map(cred => ({
+              id: base64ToArrayBuffer(cred.id),
+              type: cred.type || "public-key",
+              transports: cred.transports || ["internal"],
+            }));
+            logDebug("Gefiltert auf " + challengeData.allowCredentials.length + " Passkey(s)");
+          }
+
+          const credential = await navigator.credentials.get({
+            publicKey: publicKeyOptions,
+          });
+
+          logDebug("Passkey ausgewählt: " + credential.id);
+
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              authenticatorData: arrayBufferToBase64(credential.response.authenticatorData),
+              clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+              signature: arrayBufferToBase64(credential.response.signature),
+              userHandle: credential.response.userHandle
+                ? arrayBufferToBase64(credential.response.userHandle)
+                : null,
+            },
+            type: credential.type,
+          };
+
+          document.getElementById("status").textContent = "Verifiziere Passkey...";
+          const verifyRes = await fetch(`${API_URL}/login/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ credential: credentialData }),
+          });
+
+          const verifyResult = await verifyRes.json();
+          logDebug("Server-Antwort: " + JSON.stringify(verifyResult, null, 2));
+
+          if (verifyResult.success) {
+            document.getElementById("status").textContent =
+              "Login erfolgreich! Benutzer: " + (verifyResult.username || "unbekannt");
+
+            // Deeplink zurück zur App
+            const token = verifyResult.token || "androidToken";
+            const deeplink = `passkeyguard://android-webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(verifyResult.username || "")}&platform=android`;
+            logDebug("Deeplink: " + deeplink);
+            window.location.href = deeplink;
+          } else {
+            document.getElementById("status").textContent =
+              "Login fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
+          }
+        } catch (err) {
+          logDebug("Fehler: " + err);
+          document.getElementById("status").textContent =
+            err.name === "NotAllowedError"
+              ? "Keine Passkeys gefunden oder Auswahl abgebrochen."
+              : "Fehler: " + err.message;
+        }
+      }
 
       async function register() {
         const API_URL = "/api"; // Use relative path for local testing
