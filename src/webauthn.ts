@@ -76,6 +76,79 @@ export async function updateUserCounter(
   }
 }
 
+// --- Deeplink Attestation Preprocessing ---
+
+/**
+ * Preprocesses attestation objects from deeplink flows.
+ * iOS deeplink flow sends dcAppAttest data embedded in attStmt with fmt: "none",
+ * but fido2-lib expects attStmt to be empty for "none" format.
+ *
+ * This function extracts dcAppAttest data and cleans attStmt for fido2-lib compatibility.
+ *
+ * @param base64Attestation - Base64 encoded attestation object
+ * @returns Object with cleaned attestation and extracted dcAppAttest data
+ */
+function preprocessDeeplinkAttestation(base64Attestation: string): {
+  cleanedAttestation: string;
+  dcAppAttest?: Buffer;
+  version?: string;
+  isDeeplinkFlow: boolean;
+} {
+  try {
+    const attestationBuffer = Buffer.from(base64Attestation, 'base64');
+    const attestationObject = cbor.decodeFirstSync(attestationBuffer);
+
+    // Check if this is a deeplink flow (has dcAppAttest in attStmt)
+    if (attestationObject.fmt === 'none' &&
+        attestationObject.attStmt &&
+        attestationObject.attStmt.dcAppAttest) {
+
+      console.log("🔗 Deeplink flow detected - preprocessing attestation");
+
+      // Extract dcAppAttest data before cleaning
+      const dcAppAttest = Buffer.isBuffer(attestationObject.attStmt.dcAppAttest)
+        ? attestationObject.attStmt.dcAppAttest
+        : Buffer.from(attestationObject.attStmt.dcAppAttest);
+      const version = attestationObject.attStmt.version;
+
+      console.log(`🔗 Extracted dcAppAttest: ${dcAppAttest.length} bytes`);
+      if (version) {
+        console.log(`🔗 Extracted version: ${version}`);
+      }
+
+      // Clean attStmt for fido2-lib compatibility
+      attestationObject.attStmt = {};
+
+      // Re-encode the cleaned attestation object
+      const cleanedBuffer = cbor.encode(attestationObject);
+      const cleanedAttestation = cleanedBuffer.toString('base64');
+
+      console.log("🔗 Attestation cleaned for fido2-lib");
+
+      return {
+        cleanedAttestation,
+        dcAppAttest,
+        version,
+        isDeeplinkFlow: true
+      };
+    }
+
+    // Not a deeplink flow - return original
+    return {
+      cleanedAttestation: base64Attestation,
+      isDeeplinkFlow: false
+    };
+
+  } catch (error) {
+    console.error("Error preprocessing attestation:", error);
+    // Return original on error
+    return {
+      cleanedAttestation: base64Attestation,
+      isDeeplinkFlow: false
+    };
+  }
+}
+
 // --- fido2-lib Konfiguration ---
 const rpId = process.env.RPID || "localhost";
 console.log("🔧 WebAuthn rpId configured as:", rpId);
@@ -234,29 +307,36 @@ export async function verifyRegistration(
   console.log("🔍 DEBUG: - origin:", process.env.ORIGIN || `https://${rpId}`);
   console.log("🔍 DEBUG: - factor:", "either");
   
-  // Decode and log attestation object before passing to fido2-lib
+  // Preprocess attestation object for deeplink flow compatibility
+  let deeplinkData: { dcAppAttest?: Buffer; version?: string } = {};
   if (credential.response && credential.response.attestationObject) {
+    const preprocessResult = preprocessDeeplinkAttestation(credential.response.attestationObject);
+
+    if (preprocessResult.isDeeplinkFlow) {
+      console.log("🔗 Using preprocessed attestation for deeplink flow");
+      credential.response.attestationObject = preprocessResult.cleanedAttestation;
+      deeplinkData = {
+        dcAppAttest: preprocessResult.dcAppAttest,
+        version: preprocessResult.version
+      };
+    }
+
+    // Debug logging
     try {
       const attestationBuffer = Buffer.from(credential.response.attestationObject, 'base64');
       const attestationObject = cbor.decodeFirstSync(attestationBuffer);
-      
+
       console.log("\n🔍 DEBUG: Pre-fido2-lib attestation object analysis:");
       console.log("🔍 DEBUG: - fmt:", attestationObject.fmt);
       console.log("🔍 DEBUG: - attStmt keys:", Object.keys(attestationObject.attStmt || {}));
-      
-      if (attestationObject.attStmt && attestationObject.attStmt.dcAppAttest) {
-        console.log("🔍 DEBUG: ✅ dcAppAttest present before fido2-lib processing");
-        console.log("🔍 DEBUG: - dcAppAttest size:", attestationObject.attStmt.dcAppAttest.length, "bytes");
-      } else {
-        console.log("🔍 DEBUG: ❌ dcAppAttest NOT present before fido2-lib processing");
-      }
+      console.log("🔍 DEBUG: - isDeeplinkFlow:", preprocessResult.isDeeplinkFlow);
     } catch (e) {
       console.log("🔍 DEBUG: Could not pre-analyze attestation object:", e);
     }
   }
-  
+
   try {
-    // Direkte Verifikation ohne Patching
+    // Verifikation mit (möglicherweise bereinigtem) attestationObject
     const attestationResult = await fido2.attestationResult(credential, {
       challenge: challengeBase64,
       origin: process.env.ORIGIN || `https://${rpId}`,
