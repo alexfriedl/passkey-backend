@@ -313,23 +313,27 @@ export async function generateAuthenticationOptions(
     throw new Error("Kein registrierter User gefunden.");
   }
   console.log("User gefunden für allowCredentials:", user);
-  options.allowCredentials = [
-    {
-      type: "public-key",
-      id: base64UrlToArrayBuffer(user.credentialId),
-      // Cast explizit auf AuthenticatorTransport[] (iOS-Typ)
-      transports: ["internal"] as AuthenticatorTransport[],
-    },
-  ];
-  console.log("allowCredentials gesetzt:", options.allowCredentials);
+
+  // WICHTIG: allowCredentials.id muss als Base64URL-String gesendet werden
+  // JSON kann keine ArrayBuffer serialisieren!
+  const credentialIdBase64 = user.credentialId;
+  console.log("credentialId (Base64URL):", credentialIdBase64);
 
   // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
   const responseOptions = {
     ...options,
     challenge: challengeBase64, // Überschreibt die originale ArrayBuffer-Challenge
+    allowCredentials: [
+      {
+        type: "public-key",
+        id: credentialIdBase64, // Base64URL-String, Client konvertiert zu ArrayBuffer
+        transports: ["internal"],
+      },
+    ],
     rp: { name: "LocalKeyApp" }, // Dummy-Daten, ggf. anpassen
     user: { id: username, name: username },
   };
+  console.log("allowCredentials gesetzt:", responseOptions.allowCredentials);
 
   console.log("Authentifizierungsoptionen:", responseOptions);
   return responseOptions as any;
