@@ -271,6 +271,11 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     console.log("🔍 DEBUG: Complete request received at /api/register/verify:");
     console.log("🔍 DEBUG: Headers:", JSON.stringify(req.headers, null, 2));
     console.log("🔍 DEBUG: Body:", JSON.stringify(req.body, null, 2));
+
+    // Check for originApp parameter (from PasskeyGuard iOS deeplink flow)
+    if (req.body.originApp) {
+      console.log("🔗 DEBUG: originApp detected:", req.body.originApp);
+    }
     
     // Helper function to format Buffer data
     const formatBuffer = (buffer: Buffer, maxBytes: number = 50): string => {
