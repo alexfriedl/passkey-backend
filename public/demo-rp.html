@@ -181,8 +181,9 @@
           registerUrl += `&dcAppAttest=${dcAppAttestParam}`;
         }
         
-        // Deeplink to PasskeyGuard app
-        const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}`;
+        // Deeplink to PasskeyGuard app with returnURL fallback to success.html
+        const returnUrl = `${currentOrigin}/success.html`;
+        const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
         
         updateStatus(`
           🚀 <strong>Deeplink generiert:</strong><br>
@@ -212,8 +213,9 @@
         const currentOrigin = window.location.origin;
         const authenticateUrl = `${currentOrigin}/login.html?username=${encodeURIComponent(username)}&hw=true`;
         
-        // Deeplink to PasskeyGuard app
-        const deeplink = `passkeyguard://?origin=${encodeURIComponent(authenticateUrl)}`;
+        // Deeplink to PasskeyGuard app with returnURL fallback to success.html
+        const returnUrl = `${currentOrigin}/success.html`;
+        const deeplink = `passkeyguard://?origin=${encodeURIComponent(authenticateUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
         
         updateStatus(`
           🚀 <strong>Deeplink generiert:</strong><br>
