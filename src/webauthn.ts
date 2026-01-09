@@ -450,6 +450,7 @@ export async function verifyDiscoverableAuthentication(
       factor: "either",
       publicKey: userPublicKey?.substring(0, 50) + '...',
       prevCounter: user.counter,
+      userHandle: user.userHandle,
     });
 
     const assertionResult = await fido2.assertionResult(assertion, {
@@ -458,7 +459,7 @@ export async function verifyDiscoverableAuthentication(
       factor: "either",
       publicKey: userPublicKey,
       prevCounter: user.counter,
-      userHandle: null,
+      userHandle: user.userHandle ?? null,
     });
 
     // Aktualisiere den Counter in der DB
