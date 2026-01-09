@@ -220,6 +220,10 @@ export async function verifyRegistration(
   console.log("🔄 Geladene Challenge:", challengeBase64);
   // Don't delete challenge yet - might need it for iOS fallback
 
+  // Speichere credentialId als Base64URL-String BEVOR wir zu ArrayBuffer konvertieren
+  const credentialIdBase64 = credential.id;
+  console.log("Credential ID (Base64URL):", credentialIdBase64);
+
   // Konvertiere id und rawId in ArrayBuffer
   credential.rawId = base64UrlToArrayBuffer(credential.rawId);
   credential.id = base64UrlToArrayBuffer(credential.id);
@@ -278,12 +282,12 @@ export async function verifyRegistration(
       }
       await saveUserToDB({
         username,
-        credentialId: credential.id.toString(), // Als Base64URL‑String
+        credentialId: credentialIdBase64, // Bereits als Base64URL-String gespeichert
         publicKey: publicKeyPEM,
         counter: 0,
         userHandle: userHandle || undefined, // FIDO: user.id fuer Discoverable Auth
       });
-      console.log("User erstellt für:", username, "mit userHandle:", userHandle);
+      console.log("User erstellt für:", username, "mit userHandle:", userHandle, "credentialId:", credentialIdBase64);
     } else {
       console.log("User bereits vorhanden:", existingUser);
     }
