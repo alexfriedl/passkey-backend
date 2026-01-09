@@ -62,6 +62,23 @@
         return true;
       }
 
+      // Auto-start login if opened from app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Read username from URL and fill input
+        if (urlParams.get('username')) {
+          document.getElementById('username').value = urlParams.get('username');
+        }
+
+        if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
+          // Auto-start login when opened from PasskeyGuard app
+          setTimeout(() => {
+            login();
+          }, 1000);
+        }
+      });
+
       async function login() {
         try {
           const username = document.getElementById("username").value;

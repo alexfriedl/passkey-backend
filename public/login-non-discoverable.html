@@ -356,6 +356,24 @@
         }
       }
 
+      // Auto-start login if opened from app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+
+        // Read username from URL and fill input
+        if (urlParams.get('username')) {
+          document.getElementById('username').value = urlParams.get('username');
+        }
+
+        if ((urlParams.get('hw') === 'true' || urlParams.get('originApp')) && urlParams.get('username')) {
+          // Auto-start non-discoverable login when opened from PasskeyGuard app
+          logDebug('Auto-starting non-discoverable login (opened from app)');
+          setTimeout(() => {
+            nonDiscoverableLogin();
+          }, 1000);
+        }
+      });
+
       // Initial
       logDebug('Non-Discoverable Login Seite geladen');
       logDebug('Flow: allowCredentials = [{ id: "...", type: "public-key" }]');
