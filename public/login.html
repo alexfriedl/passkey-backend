@@ -12,6 +12,56 @@
     <p id="status"></p>
 
     <script>
+      /**
+       * Gets callback scheme from URL parameters
+       * @returns {string} The callback scheme (default: 'passkeyguard')
+       */
+      function getCallbackScheme() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('callbackScheme') || 'passkeyguard';
+      }
+
+      /**
+       * Checks if request came from a mobile app
+       * @returns {boolean}
+       */
+      function isFromMobileApp() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('originApp') !== null;
+      }
+
+      /**
+       * Navigates back to the calling app via deeplink
+       * @param {'success' | 'error'} status - The completion status
+       * @param {string | null} username - The username (optional)
+       * @param {string | null} errorMsg - Error message for error status (optional)
+       * @returns {boolean} - Whether navigation was triggered
+       */
+      function navigateBackToApp(status, username = null, errorMsg = null) {
+        if (!isFromMobileApp()) {
+          console.log('Not from mobile app - skipping deeplink callback');
+          return false;
+        }
+
+        const scheme = getCallbackScheme();
+        const params = new URLSearchParams();
+        params.set('status', status);
+
+        switch (status) {
+          case 'success':
+            if (username) params.set('username', username);
+            break;
+          case 'error':
+            params.set('error', errorMsg || 'Unknown error');
+            break;
+        }
+
+        const deeplink = `${scheme}://webauthn-completion?${params.toString()}`;
+        console.log(`Navigating back to app: ${deeplink}`);
+        window.location.href = deeplink;
+        return true;
+      }
+
       async function login() {
         try {
           const username = document.getElementById("username").value;
@@ -23,8 +73,9 @@
           console.log("📢 Login gestartet für:", username);
 
           // Schritt 1: Login-Challenge vom Server holen
+          const API_URL = "/api";
           const res = await fetch(
-            "https://www.appsprint.de/api/login",
+            `${API_URL}/login`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -93,7 +144,7 @@
 
           // Schritt 3: Anmeldung beim Server verifizieren
           const verifyRes = await fetch(
-            "https://www.appsprint.de/api/login/verify",
+            `${API_URL}/login/verify`,
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -107,13 +158,19 @@
           const verifyResult = await verifyRes.json();
           console.log("✅ Server-Antwort auf `login/verify`:", verifyResult);
 
-          document.getElementById("status").textContent = verifyResult.success
-            ? "Login erfolgreich!"
-            : "Fehler beim Login.";
+          if (verifyResult.success) {
+            document.getElementById("status").textContent = "Login erfolgreich!";
+            navigateBackToApp('success', username);
+          } else {
+            const errorMsg = verifyResult.error || "Unbekannter Fehler";
+            document.getElementById("status").textContent = "Fehler beim Login: " + errorMsg;
+            navigateBackToApp('error', username, errorMsg);
+          }
         } catch (error) {
           console.error("❌ Fehler beim Login:", error);
           document.getElementById("status").textContent =
             "Fehler beim Login: " + error.message;
+          navigateBackToApp('error', null, error.message);
         }
       }
 

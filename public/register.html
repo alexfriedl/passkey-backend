@@ -29,6 +29,58 @@
     <script>
       // Store DCAppAttest data when received from iOS
       let pendingDCAppAttestData = null;
+
+      /**
+       * Gets callback scheme from URL parameters
+       * @returns {string} The callback scheme (default: 'passkeyguard')
+       */
+      function getCallbackScheme() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('callbackScheme') || 'passkeyguard';
+      }
+
+      /**
+       * Checks if request came from a mobile app
+       * @returns {boolean}
+       */
+      function isFromMobileApp() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('originApp') !== null;
+      }
+
+      /**
+       * Navigates back to the calling app via deeplink
+       * @param {'success' | 'error'} status - The completion status
+       * @param {string | null} username - The username (optional)
+       * @param {string | null} token - The token (optional)
+       * @param {string | null} errorMsg - Error message for error status (optional)
+       * @returns {boolean} - Whether navigation was triggered
+       */
+      function navigateBackToApp(status, username = null, token = null, errorMsg = null) {
+        if (!isFromMobileApp()) {
+          logDebug('Not from mobile app - skipping deeplink callback');
+          return false;
+        }
+
+        const scheme = getCallbackScheme();
+        const params = new URLSearchParams();
+        params.set('status', status);
+
+        switch (status) {
+          case 'success':
+            if (username) params.set('username', username);
+            if (token) params.set('token', token);
+            break;
+          case 'error':
+            params.set('error', errorMsg || 'Unknown error');
+            break;
+        }
+
+        const deeplink = `${scheme}://webauthn-completion?${params.toString()}`;
+        logDebug(`Navigating back to app: ${deeplink}`);
+        window.location.href = deeplink;
+        return true;
+      }
       
       // Listen for DCAppAttest data from iOS app
       window.addEventListener('message', function(event) {
@@ -362,29 +414,26 @@
           return;
         }
 
-        // Nach erfolgreicher Registrierung: Deeplink zurück zur App
+        // Nach erfolgreicher Registrierung
         if (verifyResult.success) {
           document.getElementById("status").textContent =
             "Registrierung erfolgreich!";
-          logDebug(
-            "Registrierung erfolgreich – starte Deeplink zurück zur App."
-          );
-          // PasskeyGuard App Deeplink mit WebAuthn completion
+          logDebug("Registrierung erfolgreich!");
+
+          // Navigate back to PasskeyGuard app if request came from there
           const token = verifyResult.token || "dummyToken";
-          const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(
-            token
-          )}&username=${encodeURIComponent(username)}`;
-          logDebug("Deeplink: " + deeplink);
-          // Zurück zur App navigieren
-          window.location.href = deeplink;
+          if (!navigateBackToApp('success', username, token)) {
+            // Not from app - stay on page or redirect to success page
+            logDebug("Staying on page (not from PasskeyGuard app)");
+          }
         } else {
+          const errorMsg = verifyResult.error || "Unbekannter Fehler";
           document.getElementById("status").textContent =
-            "Registrierung fehlgeschlagen: " +
-            (verifyResult.error || "Unbekannter Fehler");
-          logDebug(
-            "Registrierung fehlgeschlagen: " +
-              (verifyResult.error || "Unbekannter Fehler")
-          );
+            "Registrierung fehlgeschlagen: " + errorMsg;
+          logDebug("Registrierung fehlgeschlagen: " + errorMsg);
+
+          // Navigate back to app with error if request came from there
+          navigateBackToApp('error', username, null, errorMsg);
         }
       }
 
@@ -434,16 +483,19 @@
           if (verifyResult.success) {
             document.getElementById("status").textContent = "Hardware-bound Registrierung erfolgreich!";
             logDebug("Hardware-bound registration completed successfully");
-            
-            // Navigate back to app with success
+
+            // Navigate back to PasskeyGuard app if request came from there
             const token = verifyResult.token || "hardwareBoundToken";
-            const deeplink = `passkeyguard://webauthn-completion?status=success&token=${encodeURIComponent(token)}&username=${encodeURIComponent(username)}&type=hardware-bound`;
-            logDebug("Returning to app with deeplink: " + deeplink);
-            window.location.href = deeplink;
-            
+            if (!navigateBackToApp('success', username, token)) {
+              logDebug("Staying on page (not from PasskeyGuard app)");
+            }
           } else {
-            document.getElementById("status").textContent = "Hardware-bound Registrierung fehlgeschlagen: " + (verifyResult.error || "Unbekannter Fehler");
-            logDebug("Hardware-bound registration failed: " + (verifyResult.error || "Unknown error"));
+            const errorMsg = verifyResult.error || "Unbekannter Fehler";
+            document.getElementById("status").textContent = "Hardware-bound Registrierung fehlgeschlagen: " + errorMsg;
+            logDebug("Hardware-bound registration failed: " + errorMsg);
+
+            // Navigate back to app with error if request came from there
+            navigateBackToApp('error', username, null, errorMsg);
           }
           
         } catch (error) {

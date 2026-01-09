@@ -88,6 +88,7 @@
       </div>
 
       <button onclick="discoverableLogin()">Mit Passkey anmelden</button>
+      <button onclick="openViaDeeplink()" style="background: #6c757d; margin-top: 5px;">Via Deeplink (PasskeyGuard)</button>
 
       <div id="status"></div>
 
@@ -124,6 +125,56 @@
         };
         status.style.background = colors[type] || colors.info;
         status.innerHTML = message;
+      }
+
+      /**
+       * Gets callback scheme from URL parameters
+       * @returns {string} The callback scheme (default: 'passkeyguard')
+       */
+      function getCallbackScheme() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('callbackScheme') || 'passkeyguard';
+      }
+
+      /**
+       * Checks if request came from a mobile app
+       * @returns {boolean}
+       */
+      function isFromMobileApp() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('originApp') !== null;
+      }
+
+      /**
+       * Navigates back to the calling app via deeplink
+       * @param {'success' | 'error'} status - The completion status
+       * @param {string | null} username - The username (optional)
+       * @param {string | null} errorMsg - Error message for error status (optional)
+       * @returns {boolean} - Whether navigation was triggered
+       */
+      function navigateBackToApp(status, username = null, errorMsg = null) {
+        if (!isFromMobileApp()) {
+          logDebug('Not from mobile app - skipping deeplink callback');
+          return false;
+        }
+
+        const scheme = getCallbackScheme();
+        const params = new URLSearchParams();
+        params.set('status', status);
+
+        switch (status) {
+          case 'success':
+            if (username) params.set('username', username);
+            break;
+          case 'error':
+            params.set('error', errorMsg || 'Unknown error');
+            break;
+        }
+
+        const deeplink = `${scheme}://webauthn-completion?${params.toString()}`;
+        logDebug(`Navigating back to app: ${deeplink}`);
+        window.location.href = deeplink;
+        return true;
       }
 
       // Hilfsfunktion: Base64URL in ArrayBuffer umwandeln
@@ -255,16 +306,32 @@
           if (verifyResult.success) {
             updateStatus(`<strong>Login erfolgreich!</strong><br>Benutzer: ${username || 'Unbekannt'}`, 'success');
             logDebug('=== LOGIN ERFOLGREICH ===');
+            navigateBackToApp('success', username);
           } else {
-            updateStatus(`<strong>Login fehlgeschlagen</strong><br>${verifyResult.error || 'Unbekannter Fehler'}`, 'error');
+            const errorMsg = verifyResult.error || 'Unbekannter Fehler';
+            updateStatus(`<strong>Login fehlgeschlagen</strong><br>${errorMsg}`, 'error');
             logDebug('=== LOGIN FEHLGESCHLAGEN ===');
+            navigateBackToApp('error', username, errorMsg);
           }
 
         } catch (error) {
           console.error("Fehler beim Login:", error);
           updateStatus(`<strong>Fehler</strong><br>${error.message}`, 'error');
           logDebug('FEHLER: ' + error.message);
+          navigateBackToApp('error', null, error.message);
         }
+      }
+
+      /**
+       * Opens this page via PasskeyGuard deeplink flow
+       */
+      function openViaDeeplink() {
+        const currentUrl = window.location.origin + window.location.pathname;
+        const returnUrl = window.location.href;
+        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(currentUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
+
+        logDebug(`Opening via deeplink: ${deeplink}`);
+        window.location.href = deeplink;
       }
 
       // Initial
