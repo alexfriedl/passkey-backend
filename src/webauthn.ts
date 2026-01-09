@@ -511,16 +511,16 @@ export async function verifyAuthentication(
       factor: "either",
       publicKey: userPublicKey?.substring(0, 50) + '...',
       prevCounter: user.counter,
-      userHandle: null,
+      userHandle: user.userHandle ?? null,
     });
-    
+
     const assertionResult = await fido2.assertionResult(assertion, {
       challenge: challengeBase64,
       origin: `https://${rpId}`,
       factor: "either",
       publicKey: userPublicKey,
       prevCounter: user.counter,
-      userHandle: null,
+      userHandle: user.userHandle ?? null,
     });
     // Aktualisiere den Counter in der DB mithilfe der update-Funktion
     await updateUserCounter(
