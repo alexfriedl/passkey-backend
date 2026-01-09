@@ -9,6 +9,7 @@ import {
   generateAndroidDirectRegistrationOptions,
   verifyRegistration,
   generateAuthenticationOptions,
+  generateDiscoverableAuthenticationOptions,
   verifyAuthentication,
   base64UrlToArrayBuffer,
 } from "./webauthn";
@@ -535,6 +536,24 @@ app.post("/api/login", async (req: any, res: any) => {
     res
       .status(500)
       .json({ error: "Fehler beim Erstellen der Login-Challenge" });
+  }
+});
+
+/**
+ * 🔹 Schritt 3b: Discoverable Login - Challenge generieren (Usernameless)
+ * Kein Username erforderlich - iOS zeigt ALLE Passkeys fuer diese Domain
+ * allowCredentials ist leer -> Discoverable/Resident Key Flow
+ */
+app.post("/api/login/discoverable", async (req: any, res: any) => {
+  try {
+    console.log("Discoverable Login angefordert (kein Username)");
+    const options = await generateDiscoverableAuthenticationOptions();
+    res.json(options);
+  } catch (error) {
+    console.error("Fehler beim Erstellen der Discoverable Login-Challenge:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Erstellen der Discoverable Login-Challenge" });
   }
 });
 
