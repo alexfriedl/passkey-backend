@@ -336,6 +336,40 @@ export async function generateAuthenticationOptions(
 }
 
 /**
+ * Discoverable Authentication: Optionen fuer Usernameless Login generieren.
+ * Diese Funktion generiert eine Challenge OHNE allowCredentials.
+ * iOS zeigt dann ALLE Passkeys fuer diese Domain an.
+ */
+export async function generateDiscoverableAuthenticationOptions(): Promise<PublicKeyCredentialRequestOptions> {
+  console.log("Erstelle Discoverable Authentifizierungsoptionen (kein Username)");
+  const options = await fido2.assertionOptions();
+  console.log("FIDO2 assertionOptions erhalten:", options);
+
+  // Generiere eine Session-ID fuer die Challenge-Speicherung
+  const sessionId = `discoverable_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+
+  // Konvertiere die generierte Challenge in einen Base64URL-String
+  const challengeBase64 = arrayBufferToBase64Url(options.challenge);
+  console.log("Generierte Challenge (Base64URL):", challengeBase64);
+  await storeChallenge(sessionId, challengeBase64);
+
+  // KEINE allowCredentials = Discoverable/Resident Key Flow
+  options.allowCredentials = [];
+  console.log("allowCredentials: [] (Discoverable Flow)");
+
+  const responseOptions = {
+    ...options,
+    challenge: challengeBase64,
+    sessionId: sessionId, // Client muss diese ID bei verify mitsenden
+    rp: { name: "LocalKeyApp" },
+    userVerification: "preferred",
+  };
+
+  console.log("Discoverable Authentifizierungsoptionen:", responseOptions);
+  return responseOptions as any;
+}
+
+/**
  * Authentifizierung: FIDO2-Login verifizieren
  */
 export async function verifyAuthentication(
