@@ -11,6 +11,7 @@ import {
   generateAuthenticationOptions,
   generateDiscoverableAuthenticationOptions,
   verifyAuthentication,
+  verifyDiscoverableAuthentication,
   base64UrlToArrayBuffer,
 } from "./webauthn";
 import path from "path";
@@ -554,6 +555,34 @@ app.post("/api/login/discoverable", async (req: any, res: any) => {
     res
       .status(500)
       .json({ error: "Fehler beim Erstellen der Discoverable Login-Challenge" });
+  }
+});
+
+/**
+ * 🔹 Schritt 3c: Discoverable Login - Verifizierung
+ * Kein Username - User wird anhand der credentialId identifiziert
+ */
+app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
+  try {
+    const { assertion, sessionId } = req.body;
+    if (!assertion || !sessionId) {
+      return res
+        .status(400)
+        .json({ error: "Assertion und sessionId sind erforderlich" });
+    }
+
+    console.log("Discoverable Login Verify mit sessionId:", sessionId);
+
+    // Convert base64 strings back to ArrayBuffers for fido2-lib
+    const convertedAssertion = convertAssertionToArrayBuffers(assertion);
+
+    const result = await verifyDiscoverableAuthentication(convertedAssertion, sessionId);
+    res.json({ success: true, username: result.username });
+  } catch (error) {
+    console.error("Fehler beim Verifizieren der Discoverable Authentifizierung:", error);
+    res
+      .status(500)
+      .json({ error: "Fehler beim Verifizieren der Discoverable Authentifizierung" });
   }
 });
 

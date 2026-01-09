@@ -5,6 +5,7 @@ export interface IUser extends Document {
   credentialId: string;
   publicKey: string;
   counter: number;
+  userHandle?: string; // FIDO: user.id bei Registrierung, fuer Discoverable Auth
   registrationPlatform?: string;
   serverChallenge?: string;
   iosChallenge?: string;
@@ -17,6 +18,7 @@ const UserSchema = new mongoose.Schema({
   credentialId: { type: String, required: true },
   publicKey: { type: String, required: true },
   counter: { type: Number, default: 0 },
+  userHandle: { type: String, required: false, index: true }, // FIDO: user.id fuer Discoverable
   registrationPlatform: { type: String, required: false },
   serverChallenge: { type: String, required: false },
   iosChallenge: { type: String, required: false },

@@ -238,14 +238,13 @@
           logDebug('Sende Credential zur Verifikation...');
           logDebug(JSON.stringify(credentialData, null, 2));
 
-          // Schritt 3: Verifikation beim Server
-          const verifyRes = await fetch(`${API_URL}/login/verify`, {
+          // Schritt 3: Verifikation beim Server (Discoverable-spezifischer Endpunkt)
+          const verifyRes = await fetch(`${API_URL}/login/discoverable/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              username: username, // Kann null sein bei Discoverable
               assertion: credentialData,
-              sessionId: sessionId // Fuer Challenge-Lookup
+              sessionId: sessionId // Fuer Challenge-Lookup, User wird via credentialId identifiziert
             })
           });
 

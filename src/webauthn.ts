@@ -2,6 +2,7 @@ import { Fido2AttestationResult, Fido2Lib } from "fido2-lib";
 import {
   storeChallenge,
   getChallenge,
+  getUserHandle,
   deleteChallenge,
 } from "./challenge-store";
 import { createPublicKey, randomBytes } from "crypto";
@@ -117,14 +118,17 @@ export async function generateRegistrationOptions(
 
   // Konvertiere die Challenge in einen Base64URL-String und speichere ihn.
   const challengeBase64 = arrayBufferToBase64Url(options.challenge);
-  
+
   console.log("[Log] Challenge als ArrayBuffer (Base64): " + arrayBufferToBase64(options.challenge));
-  storeChallenge(username, challengeBase64);
 
-
-  // Generiere eine User-ID und wandle sie in einen Base64URL-String um.
+  // Generiere eine User-ID (userHandle) und wandle sie in einen Base64URL-String um.
+  // FIDO: Diese ID wird bei Discoverable Auth vom Authenticator zurueckgegeben
   const userIdBuffer = randomBytes(16);
   const userIdBase64 = arrayBufferToBase64Url(userIdBuffer);
+
+  // Speichere Challenge UND userHandle fuer spaetere Verifikation
+  storeChallenge(username, challengeBase64, userIdBase64);
+  console.log("[Log] UserHandle (user.id) generiert und gespeichert:", userIdBase64);
 
   // Erstelle das Response-Objekt mit Challenge und User-ID als Strings.
   const response: PublicKeyCredentialCreationOptions = {
@@ -135,7 +139,7 @@ export async function generateRegistrationOptions(
     },
     challenge: challengeBase64, // als Base64URL-String
     user: {
-      id: userIdBase64, // als Base64URL-String
+      id: userIdBase64, // als Base64URL-String (= userHandle fuer FIDO Discoverable)
       name: username,
       displayName: username,
     },
@@ -255,7 +259,11 @@ export async function verifyRegistration(
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
-    
+
+    // Hole das userHandle aus dem Challenge-Store (wurde bei generateRegistrationOptions gespeichert)
+    const userHandle = await getUserHandle(username);
+    console.log("UserHandle fuer FIDO Discoverable:", userHandle);
+
     // Only delete challenge after successful verification
     deleteChallenge(username);
 
@@ -273,8 +281,9 @@ export async function verifyRegistration(
         credentialId: credential.id.toString(), // Als Base64URL‑String
         publicKey: publicKeyPEM,
         counter: 0,
+        userHandle: userHandle || undefined, // FIDO: user.id fuer Discoverable Auth
       });
-      console.log("User erstellt für:", username);
+      console.log("User erstellt für:", username, "mit userHandle:", userHandle);
     } else {
       console.log("User bereits vorhanden:", existingUser);
     }
@@ -371,6 +380,99 @@ export async function generateDiscoverableAuthenticationOptions(): Promise<Publi
 
   console.log("Discoverable Authentifizierungsoptionen:", responseOptions);
   return responseOptions as any;
+}
+
+/**
+ * Discoverable Authentication: Verifizierung ohne vorherigen Username.
+ * Der User wird anhand der credentialId oder userHandle identifiziert.
+ */
+export async function verifyDiscoverableAuthentication(
+  assertion: any,
+  sessionId: string
+) {
+  console.log("Verifiziere Discoverable Authentication mit sessionId:", sessionId);
+
+  // Challenge wurde unter sessionId gespeichert
+  const challengeBase64 = await getChallenge(sessionId);
+  if (!challengeBase64) {
+    throw new Error("Challenge nicht gefunden oder abgelaufen.");
+  }
+  await deleteChallenge(sessionId);
+
+  // FIDO-konform: Zuerst userHandle pruefen (primaer), dann credentialId (fallback)
+  let user = null;
+
+  // 1. Primaer: Suche via userHandle (FIDO-Standard)
+  if (assertion.response.userHandle) {
+    const userHandleBase64 = arrayBufferToBase64Url(assertion.response.userHandle);
+    console.log("FIDO: Suche User via userHandle:", userHandleBase64);
+    user = await User.findOne({ userHandle: userHandleBase64 });
+    if (user) {
+      console.log("FIDO: User via userHandle gefunden:", user.username);
+    }
+  }
+
+  // 2. Fallback: Suche via credentialId
+  if (!user) {
+    const credentialIdBase64 = arrayBufferToBase64Url(assertion.rawId);
+    console.log("Fallback: Suche User via credentialId:", credentialIdBase64);
+    user = await User.findOne({ credentialId: credentialIdBase64 });
+    if (user) {
+      console.log("Fallback: User via credentialId gefunden:", user.username);
+    }
+  }
+
+  if (!user) {
+    const users = await User.find({});
+    console.log("Alle User in DB:", users.map(u => ({
+      username: u.username,
+      credentialId: u.credentialId,
+      userHandle: u.userHandle
+    })));
+    throw new Error("User nicht gefunden (weder via userHandle noch credentialId).");
+  }
+
+  console.log("User gefunden:", user.username);
+
+  const userPublicKey = user.publicKey;
+  if (!userPublicKey) {
+    throw new Error("PublicKey nicht gefunden.");
+  }
+
+  try {
+    console.log('fido2.assertionResult (Discoverable) called with:', {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey: userPublicKey?.substring(0, 50) + '...',
+      prevCounter: user.counter,
+    });
+
+    const assertionResult = await fido2.assertionResult(assertion, {
+      challenge: challengeBase64,
+      origin: `https://${rpId}`,
+      factor: "either",
+      publicKey: userPublicKey,
+      prevCounter: user.counter,
+      userHandle: null,
+    });
+
+    // Aktualisiere den Counter in der DB
+    await updateUserCounter(
+      user.username,
+      assertionResult.authnrData.get("counter") || user.counter
+    );
+
+    console.log("Discoverable Authentifizierung erfolgreich fuer:", user.username);
+    return {
+      success: true,
+      username: user.username,
+      assertionResult
+    };
+  } catch (error) {
+    console.error("Fehler bei Discoverable fido2.assertionResult():", error);
+    throw new Error("Fehler beim Verifizieren der Discoverable Authentifizierung.");
+  }
 }
 
 /**

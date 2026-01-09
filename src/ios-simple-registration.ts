@@ -1,6 +1,6 @@
 import * as cbor from 'cbor';
 import * as crypto from 'crypto';
-import { deleteChallenge } from './challenge-store';
+import { deleteChallenge, getUserHandle } from './challenge-store';
 import { saveUserToDB } from './webauthn';
 
 interface IOSRegistrationRequest {
@@ -194,20 +194,25 @@ export async function registerIOSSimple(request: IOSRegistrationRequest): Promis
     users.set(request.username, user);
     console.log('User registered successfully:', request.username);
     
+    // Hole userHandle aus Challenge-Store (wurde bei generateRegistrationOptions gespeichert)
+    const userHandle = await getUserHandle(request.username);
+    console.log('UserHandle fuer FIDO Discoverable:', userHandle);
+
     // Also save to MongoDB for persistence
     try {
       await saveUserToDB({
         username: request.username,
         credentialId: credentialId,
         publicKey: publicKeyPEM,
-        counter: 0
+        counter: 0,
+        userHandle: userHandle || undefined // FIDO: user.id fuer Discoverable Auth
       });
-      console.log('User saved to MongoDB');
+      console.log('User saved to MongoDB mit userHandle:', userHandle);
     } catch (dbError) {
       console.error('MongoDB save error (non-critical):', dbError);
       // Continue anyway - in-memory storage is working
     }
-    
+
     // Delete challenge after successful registration
     deleteChallenge(request.username);
 

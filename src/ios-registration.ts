@@ -8,6 +8,7 @@
 import { Fido2Lib } from "fido2-lib";
 import { createHash } from "crypto";
 import User from "./models/User";
+import { getUserHandle } from "./challenge-store";
 
 // Konfiguration
 const rpId = process.env.RP_ID || "www.appsprint.de";
@@ -133,21 +134,26 @@ export async function verifyIOSRegistration(
       if (!publicKeyPEM) {
         throw new Error("Public Key konnte nicht extrahiert werden.");
       }
-      
+
+      // Hole userHandle aus Challenge-Store (wurde bei generateRegistrationOptions gespeichert)
+      const userHandle = await getUserHandle(username);
+      console.log("UserHandle fuer FIDO Discoverable:", userHandle);
+
       // Save user with metadata about iOS registration
       const newUser = await User.create({
         username,
         credentialId: credential.id.toString(),
         publicKey: publicKeyPEM,
         counter: 0,
+        userHandle: userHandle || undefined, // FIDO: user.id fuer Discoverable Auth
         registrationPlatform: "ios-extension",
         serverChallenge: serverChallenge, // Store for audit
         iosChallenge: "internal-ios-challenge", // iOS uses internal challenge
         clientDataHash: originalClientDataHash, // Store the original hash for audit
         createdAt: new Date()
       });
-      
-      console.log("✅ iOS User created:", username);
+
+      console.log("✅ iOS User created:", username, "mit userHandle:", userHandle);
     }
     
     return attestationResult;
