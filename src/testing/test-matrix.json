@@ -652,6 +652,157 @@
     }
   ],
 
+  "webviewRegistration": [
+    {
+      "id": "WEBVIEW_REG_P_001",
+      "description": "Successful registration via DeepLink flow",
+      "priority": "P0",
+      "pageType": "demo-rp-register",
+      "parameters": {
+        "userVerification": "required",
+        "residentKey": "required",
+        "attestation": "none"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true,
+        "upFlag": true
+      },
+      "traceId": "TRACE_WVREG_01"
+    },
+    {
+      "id": "WEBVIEW_REG_P_002",
+      "description": "DeepLink registration with userVerification required",
+      "priority": "P0",
+      "pageType": "demo-rp-register",
+      "parameters": {
+        "userVerification": "required"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_WVREG_02"
+    },
+    {
+      "id": "WEBVIEW_REG_P_003",
+      "description": "DeepLink registration with residentKey required",
+      "priority": "P0",
+      "pageType": "demo-rp-register",
+      "parameters": {
+        "residentKey": "required"
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_WVREG_03"
+    },
+    {
+      "id": "WEBVIEW_REG_P_004",
+      "description": "DeepLink registration with attestation none",
+      "priority": "P0",
+      "pageType": "demo-rp-register",
+      "parameters": {
+        "attestation": "none"
+      },
+      "expected": {
+        "success": true,
+        "attestationFormat": "none"
+      },
+      "traceId": "TRACE_WVREG_04"
+    },
+    {
+      "id": "WEBVIEW_REG_P_005",
+      "description": "DeepLink registration with ES256 algorithm",
+      "priority": "P0",
+      "pageType": "demo-rp-register",
+      "parameters": {
+        "pubKeyCredParams": [-7]
+      },
+      "expected": {
+        "success": true,
+        "algorithm": -7
+      },
+      "traceId": "TRACE_WVREG_05"
+    }
+  ],
+
+  "webviewAuthentication": [
+    {
+      "id": "WEBVIEW_AUTH_P_001",
+      "description": "Successful authentication via DeepLink flow",
+      "priority": "P0",
+      "pageType": "demo-rp-auth",
+      "parameters": {
+        "userVerification": "required",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true,
+        "upFlag": true
+      },
+      "traceId": "TRACE_WVAUTH_01"
+    },
+    {
+      "id": "WEBVIEW_AUTH_P_002",
+      "description": "DeepLink auth with userVerification required",
+      "priority": "P0",
+      "pageType": "demo-rp-auth",
+      "parameters": {
+        "userVerification": "required",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_WVAUTH_02"
+    },
+    {
+      "id": "WEBVIEW_AUTH_P_003",
+      "description": "DeepLink auth discoverable flow",
+      "priority": "P0",
+      "pageType": "demo-rp-auth",
+      "parameters": {
+        "allowCredentials": []
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Shows credential picker in WebView",
+      "traceId": "TRACE_WVAUTH_03"
+    },
+    {
+      "id": "WEBVIEW_AUTH_P_004",
+      "description": "DeepLink auth non-discoverable flow",
+      "priority": "P0",
+      "pageType": "demo-rp-auth",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Direct credential selection, no picker",
+      "traceId": "TRACE_WVAUTH_04"
+    },
+    {
+      "id": "WEBVIEW_AUTH_P_005",
+      "description": "DeepLink auth callback returns to app",
+      "priority": "P0",
+      "pageType": "demo-rp-auth",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Tests return deeplink callback handling",
+      "traceId": "TRACE_WVAUTH_05"
+    }
+  ],
+
   "metadata": {
     "priorities": {
       "P0": "Critical - Must pass for release",
@@ -667,6 +818,13 @@
       "pass": "LambdaTest auto-approves biometric",
       "fail": "LambdaTest simulates biometric failure",
       "cancel": "LambdaTest simulates user pressing Cancel"
+    },
+    "pageTypes": {
+      "register.html": "Direct Safari registration",
+      "login-discoverable.html": "Direct Safari discoverable auth",
+      "login-non-discoverable.html": "Direct Safari non-discoverable auth",
+      "demo-rp-register": "DeepLink flow: demo-rp.html → App → WebView → register.html",
+      "demo-rp-auth": "DeepLink flow: demo-rp.html → App → WebView → login.html"
     },
     "source": "Synced with TESTCASES.csv from passkeyguard-ios repository"
   }
