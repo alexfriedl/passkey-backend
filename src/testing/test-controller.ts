@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { testResultStore, TestResult } from './test-results';
-import { setTestConfig, getTestConfig, isTestMode, getDefaultConfig, TestConfig } from './test-webauthn-config';
+import { testResultStore } from './test-results';
+import { setTestConfig, isTestMode, getDefaultConfig, TestConfig } from './test-webauthn-config';
 import testMatrix from './test-matrix.json';
 
 const router = Router();
