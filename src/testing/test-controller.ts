@@ -2,6 +2,7 @@ import { Router, Request, Response } from 'express';
 import { testResultStore } from './test-results';
 import { setTestConfig, isTestMode, getDefaultConfig, TestConfig } from './test-webauthn-config';
 import testMatrix from './test-matrix.json';
+import User from '../models/User';
 
 const router = Router();
 
@@ -230,6 +231,76 @@ router.get('/config', (_req: Request, res: Response) => {
     success: true,
     config: currentConfig,
   });
+});
+
+/**
+ * GET /api/test/wait-for-user
+ * Wait for a user to be registered in the database
+ * Used by E2E tests to ensure registration completes before authentication
+ */
+router.get('/wait-for-user', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = req.query.username as string;
+    const timeoutMs = parseInt(req.query.timeout as string) || 30000;
+
+    if (!username) {
+      res.status(400).json({
+        success: false,
+        found: false,
+        error: 'username query parameter is required',
+      });
+      return;
+    }
+
+    console.log(`\n========== WAIT FOR USER ==========`);
+    console.log(`Waiting for user: ${username}`);
+    console.log(`Timeout: ${timeoutMs}ms`);
+
+    const startTime = Date.now();
+    const pollInterval = 500; // Poll every 500ms
+
+    while (Date.now() - startTime < timeoutMs) {
+      const user = await User.findOne({ username });
+
+      if (user) {
+        const elapsed = Date.now() - startTime;
+        console.log(`✅ User found after ${elapsed}ms: ${username}`);
+        console.log(`========== WAIT FOR USER END ==========\n`);
+
+        res.json({
+          success: true,
+          found: true,
+          user: {
+            username: user.username,
+            createdAt: user.createdAt,
+          },
+          elapsedMs: elapsed,
+        });
+        return;
+      }
+
+      // Wait before next poll
+      await new Promise(resolve => setTimeout(resolve, pollInterval));
+    }
+
+    // Timeout reached
+    console.log(`❌ Timeout: User not found: ${username}`);
+    console.log(`========== WAIT FOR USER END ==========\n`);
+
+    res.json({
+      success: false,
+      found: false,
+      error: `User "${username}" not found within ${timeoutMs}ms`,
+      timeoutMs,
+    });
+  } catch (error) {
+    console.error('Error waiting for user:', error);
+    res.status(500).json({
+      success: false,
+      found: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
 });
 
 // ============================================================================
