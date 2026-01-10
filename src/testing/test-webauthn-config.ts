@@ -4,6 +4,9 @@ import { Fido2Lib } from "fido2-lib";
 // Test Configuration for WebAuthn
 // ============================================================================
 
+// Fido2Lib only supports these attestation values
+type Fido2LibAttestation = 'none' | 'direct' | 'indirect';
+
 export interface TestConfig {
   userVerification: 'required' | 'preferred' | 'discouraged';
   residentKey: 'required' | 'preferred' | 'discouraged';
@@ -12,6 +15,18 @@ export interface TestConfig {
   excludeCredentials: Array<{ id: string; transports?: string[] }>;
   allowCredentials: Array<{ id: string; transports?: string[] }>;
   testId?: string;
+}
+
+/**
+ * Map attestation config to Fido2Lib compatible value
+ * 'enterprise' is not supported by fido2-lib, fallback to 'direct'
+ */
+function mapAttestationForFido2Lib(attestation: TestConfig['attestation']): Fido2LibAttestation {
+  if (attestation === 'enterprise') {
+    console.log("  ⚠️ 'enterprise' attestation not supported by fido2-lib, using 'direct'");
+    return 'direct';
+  }
+  return attestation;
 }
 
 // Current test configuration (null = use defaults)
@@ -71,11 +86,13 @@ export function createFido2WithConfig(
   rpId: string,
   config: TestConfig
 ): Fido2Lib {
+  const fido2Attestation = mapAttestationForFido2Lib(config.attestation);
+
   console.log("\n🧪 Creating Fido2Lib with test config:");
   console.log("  rpId:", rpId);
   console.log("  userVerification:", config.userVerification);
   console.log("  requireResidentKey:", config.residentKey === 'required');
-  console.log("  attestation:", config.attestation);
+  console.log("  attestation:", config.attestation, fido2Attestation !== config.attestation ? `(mapped to ${fido2Attestation})` : '');
   console.log("  cryptoParams:", config.pubKeyCredParams);
 
   return new Fido2Lib({
@@ -86,7 +103,7 @@ export function createFido2WithConfig(
     authenticatorAttachment: "platform",
     authenticatorRequireResidentKey: config.residentKey === 'required',
     authenticatorUserVerification: config.userVerification,
-    attestation: config.attestation,
+    attestation: fido2Attestation,
     cryptoParams: config.pubKeyCredParams,
   });
 }

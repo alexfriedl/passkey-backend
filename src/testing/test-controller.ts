@@ -1,6 +1,6 @@
 import { Router, Request, Response } from 'express';
-import { testResultStore, TestResult } from './test-results';
-import { setTestConfig, getTestConfig, isTestMode, getDefaultConfig, TestConfig } from './test-webauthn-config';
+import { testResultStore } from './test-results';
+import { setTestConfig, isTestMode, getDefaultConfig, TestConfig } from './test-webauthn-config';
 import testMatrix from './test-matrix.json';
 
 const router = Router();
@@ -50,7 +50,7 @@ let currentConfig: TestConfiguration = {
  * POST /api/test/configure
  * Set FIDO parameters for the next registration/authentication operation
  */
-router.post('/configure', (req: Request, res: Response) => {
+router.post('/configure', (req: Request, res: Response): void => {
   try {
     const config = req.body as Partial<TestConfiguration>;
 
@@ -70,10 +70,11 @@ router.post('/configure', (req: Request, res: Response) => {
     setTestConfig(currentConfig as TestConfig);
     if (validationErrors.length > 0) {
       console.error('Configuration validation errors:', validationErrors);
-      return res.status(400).json({
+      res.status(400).json({
         success: false,
         errors: validationErrors,
       });
+      return;
     }
 
     console.log('Active configuration:', JSON.stringify(currentConfig, null, 2));
@@ -129,15 +130,16 @@ router.post('/reset', (_req: Request, res: Response) => {
  * GET /api/test/results
  * Get the last operation result with full details
  */
-router.get('/results', (_req: Request, res: Response) => {
+router.get('/results', (_req: Request, res: Response): void => {
   try {
     const lastResult = testResultStore.getLastResult();
 
     if (!lastResult) {
-      return res.status(404).json({
+      res.status(404).json({
         success: false,
         error: 'No test results available',
       });
+      return;
     }
 
     res.json({
