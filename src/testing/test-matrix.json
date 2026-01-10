@@ -1,0 +1,673 @@
+{
+  "version": "1.0",
+  "description": "FIDO/WebAuthn E2E Test Matrix for PasskeyGuard iOS - synced with TESTCASES.csv",
+  "generatedAt": "2025-01-10",
+
+  "registration": [
+    {
+      "id": "REG_P_001",
+      "description": "Successful passkey registration",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "required",
+        "residentKey": "required",
+        "attestation": "none"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true,
+        "upFlag": true
+      },
+      "traceId": "TRACE_01"
+    },
+    {
+      "id": "REG_P_007",
+      "description": "Attestation 'none' accepted without statement",
+      "priority": "P0",
+      "parameters": {
+        "attestation": "none"
+      },
+      "expected": {
+        "success": true,
+        "attestationFormat": "none",
+        "hasX5c": false
+      },
+      "traceId": "TRACE_ATT_02"
+    },
+    {
+      "id": "REG_P_012",
+      "description": "authenticatorAttachment 'platform' uses local authenticator",
+      "priority": "P0",
+      "parameters": {
+        "authenticatorAttachment": "platform"
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_ATTACH_01"
+    },
+    {
+      "id": "REG_P_013",
+      "description": "authenticatorAttachment 'cross-platform' uses hybrid/QR flow",
+      "priority": "P0",
+      "parameters": {
+        "authenticatorAttachment": "cross-platform"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "App is invoked via QR code from another device",
+      "traceId": "TRACE_ATTACH_02"
+    },
+    {
+      "id": "REG_P_014",
+      "description": "authenticatorAttachment undefined allows both flows",
+      "priority": "P0",
+      "parameters": {},
+      "expected": {
+        "success": true
+      },
+      "notes": "App handles both platform and cross-platform scenarios",
+      "traceId": "TRACE_ATTACH_03"
+    },
+    {
+      "id": "REG_P_015",
+      "description": "residentKey 'required' creates discoverable credential",
+      "priority": "P0",
+      "parameters": {
+        "residentKey": "required"
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_RK_01"
+    },
+    {
+      "id": "REG_P_016",
+      "description": "residentKey 'preferred' creates discoverable if possible",
+      "priority": "P0",
+      "parameters": {
+        "residentKey": "preferred"
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_RK_02"
+    },
+    {
+      "id": "REG_P_020",
+      "description": "userVerification 'required' enforces biometric/PIN",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "required"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_UV_01"
+    },
+    {
+      "id": "REG_P_021",
+      "description": "userVerification 'required' fails on user cancel",
+      "priority": "P0",
+      "biometricMode": "cancel",
+      "parameters": {
+        "userVerification": "required"
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "traceId": "TRACE_UV_02"
+    },
+    {
+      "id": "REG_P_022",
+      "description": "userVerification 'required' fails without biometric/PIN configured",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "required"
+      },
+      "precondition": "NO_BIOMETRIC_CONFIGURED",
+      "expected": {
+        "success": false,
+        "errorType": "NotSupportedError"
+      },
+      "traceId": "TRACE_UV_03"
+    },
+    {
+      "id": "REG_P_023",
+      "description": "userVerification 'preferred' performs UV if available",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "preferred"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_UV_04"
+    },
+    {
+      "id": "REG_P_024",
+      "description": "userVerification 'preferred' succeeds without UV on user cancel",
+      "priority": "P0",
+      "biometricMode": "cancel",
+      "parameters": {
+        "userVerification": "preferred"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": false
+      },
+      "traceId": "TRACE_UV_05"
+    },
+    {
+      "id": "REG_P_025",
+      "description": "userVerification 'discouraged' skips biometric",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "discouraged"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": false
+      },
+      "notes": "FIDO request remains same, but PasskeyGuard will nevertheless ask for biometry",
+      "traceId": "TRACE_UV_06"
+    },
+    {
+      "id": "REG_P_026",
+      "description": "pubKeyCredParams ES256 supported by Secure Enclave",
+      "priority": "P0",
+      "parameters": {
+        "pubKeyCredParams": [-7]
+      },
+      "expected": {
+        "success": true,
+        "algorithm": -7
+      },
+      "traceId": "TRACE_ALG_01"
+    },
+    {
+      "id": "REG_P_027",
+      "description": "pubKeyCredParams ES256 and RS256, ES256 first",
+      "priority": "P0",
+      "parameters": {
+        "pubKeyCredParams": [-7, -257]
+      },
+      "expected": {
+        "success": true,
+        "algorithm": -7
+      },
+      "traceId": "TRACE_ALG_02"
+    },
+    {
+      "id": "REG_P_028",
+      "description": "pubKeyCredParams RS256 first, ES256 second",
+      "priority": "P1",
+      "parameters": {
+        "pubKeyCredParams": [-257, -7]
+      },
+      "expected": {
+        "success": true,
+        "algorithm": -7
+      },
+      "traceId": "TRACE_ALG_03"
+    },
+    {
+      "id": "REG_P_030",
+      "description": "pubKeyCredParams RS256 only not supported",
+      "priority": "P1",
+      "parameters": {
+        "pubKeyCredParams": [-257]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotSupportedError"
+      },
+      "traceId": "TRACE_ALG_05"
+    },
+    {
+      "id": "REG_P_031",
+      "description": "pubKeyCredParams EdDSA only not supported",
+      "priority": "P1",
+      "parameters": {
+        "pubKeyCredParams": [-8]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotSupportedError"
+      },
+      "traceId": "TRACE_ALG_06"
+    },
+    {
+      "id": "REG_P_036",
+      "description": "excludeCredentials empty allows registration",
+      "priority": "P0",
+      "parameters": {
+        "excludeCredentials": []
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_EXCL_01"
+    },
+    {
+      "id": "REG_P_037",
+      "description": "excludeCredentials with unknown credential ID allows registration",
+      "priority": "P0",
+      "parameters": {
+        "excludeCredentials": [
+          { "id": "dW5rbm93bi1jcmVkZW50aWFsLWlk", "transports": ["internal"] }
+        ]
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_EXCL_02"
+    },
+    {
+      "id": "REG_P_038",
+      "description": "excludeCredentials with known credential ID blocks registration",
+      "priority": "P0",
+      "parameters": {
+        "excludeCredentials": "USE_EXISTING_CREDENTIAL"
+      },
+      "expected": {
+        "success": false,
+        "errorType": "InvalidStateError"
+      },
+      "notes": "Requires pre-registered credential",
+      "traceId": "TRACE_EXCL_03"
+    },
+    {
+      "id": "REG_P_039",
+      "description": "excludeCredentials with transports hint filters check",
+      "priority": "P0",
+      "parameters": {
+        "excludeCredentials": [
+          { "id": "USE_EXISTING_CREDENTIAL", "transports": ["usb"] }
+        ]
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Transport hint allows selective exclusion check",
+      "traceId": "TRACE_EXCL_04"
+    },
+    {
+      "id": "REG_P_040",
+      "description": "excludeCredentials with matching transports blocks registration",
+      "priority": "P0",
+      "parameters": {
+        "excludeCredentials": [
+          { "id": "USE_EXISTING_CREDENTIAL", "transports": ["internal"] }
+        ]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "InvalidStateError"
+      },
+      "traceId": "TRACE_EXCL_05"
+    },
+    {
+      "id": "REG_P_041",
+      "description": "extension credProps returns resident key status",
+      "priority": "P0",
+      "parameters": {
+        "extensions": { "credProps": true }
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_EXT_01"
+    },
+    {
+      "id": "REG_P_006",
+      "description": "Attestation 'direct' returns valid statement",
+      "priority": "P1",
+      "parameters": {
+        "attestation": "direct"
+      },
+      "expected": {
+        "success": true,
+        "attestationFormat": "none"
+      },
+      "notes": "iOS typically returns fmt='none' for non-MDM devices",
+      "traceId": "TRACE_ATT_01"
+    },
+    {
+      "id": "REG_P_017",
+      "description": "residentKey 'preferred' but non-discoverable returned",
+      "priority": "P1",
+      "parameters": {
+        "residentKey": "preferred"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Valid behavior when storage full or policy restricts",
+      "traceId": "TRACE_RK_03"
+    },
+    {
+      "id": "REG_P_018",
+      "description": "residentKey 'discouraged' creates server-side credential",
+      "priority": "P1",
+      "parameters": {
+        "residentKey": "discouraged"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Username-first authentication flow required",
+      "traceId": "TRACE_RK_04"
+    }
+  ],
+
+  "authentication": [
+    {
+      "id": "AUTH_P_001",
+      "description": "Successful passkey authentication",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "required",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true,
+        "upFlag": true
+      },
+      "traceId": "TRACE_01"
+    },
+    {
+      "id": "AUTH_P_008",
+      "description": "Auto-use single available credential (no chooser)",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Single matching credential auto-selected without duplicate prompts",
+      "traceId": "TRACE_11"
+    },
+    {
+      "id": "AUTH_P_015",
+      "description": "allowCredentials empty triggers discoverable flow",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": []
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Shows credential picker for rpId",
+      "traceId": "TRACE_ALLOW_01"
+    },
+    {
+      "id": "AUTH_P_016",
+      "description": "allowCredentials with known credential ID",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_ALLOW_02"
+    },
+    {
+      "id": "AUTH_P_017",
+      "description": "allowCredentials with unknown credential ID",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "dW5rbm93bi1jcmVkZW50aWFsLWlk", "transports": ["internal"] }
+        ]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "traceId": "TRACE_ALLOW_03"
+    },
+    {
+      "id": "AUTH_P_018",
+      "description": "allowCredentials with multiple IDs, one matches",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "dW5rbm93bi1pZA" },
+          "USE_REGISTERED_CREDENTIAL"
+        ]
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_ALLOW_04"
+    },
+    {
+      "id": "AUTH_P_020",
+      "description": "allowCredentials with multiple IDs, none match",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "dW5rbm93bi0x" },
+          { "id": "dW5rbm93bi0y" }
+        ]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "traceId": "TRACE_ALLOW_06"
+    },
+    {
+      "id": "AUTH_P_021",
+      "description": "allowCredentials with transports internal",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "USE_REGISTERED_CREDENTIAL", "transports": ["internal"] }
+        ]
+      },
+      "expected": {
+        "success": true
+      },
+      "traceId": "TRACE_ALLOW_07"
+    },
+    {
+      "id": "AUTH_P_023",
+      "description": "allowCredentials with non-matching transports hint",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "USE_REGISTERED_CREDENTIAL", "transports": ["usb"] }
+        ]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "notes": "Behavior varies - hint may be advisory only",
+      "traceId": "TRACE_ALLOW_09"
+    },
+    {
+      "id": "AUTH_P_024",
+      "description": "userVerification required enforces biometric",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "required",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_UV_AUTH_01"
+    },
+    {
+      "id": "AUTH_P_025",
+      "description": "userVerification required fails on user cancel",
+      "priority": "P0",
+      "biometricMode": "cancel",
+      "parameters": {
+        "userVerification": "required",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "traceId": "TRACE_UV_AUTH_02"
+    },
+    {
+      "id": "AUTH_P_026",
+      "description": "userVerification preferred performs UV if available",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "preferred",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": true
+      },
+      "traceId": "TRACE_UV_AUTH_03"
+    },
+    {
+      "id": "AUTH_P_027",
+      "description": "userVerification preferred succeeds without UV on cancel",
+      "priority": "P0",
+      "biometricMode": "cancel",
+      "parameters": {
+        "userVerification": "preferred",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": false
+      },
+      "traceId": "TRACE_UV_AUTH_04"
+    },
+    {
+      "id": "AUTH_P_028",
+      "description": "userVerification discouraged skips biometric",
+      "priority": "P0",
+      "parameters": {
+        "userVerification": "discouraged",
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true,
+        "uvFlag": false
+      },
+      "traceId": "TRACE_UV_AUTH_05"
+    },
+    {
+      "id": "AUTH_P_009",
+      "description": "Double auth guard discoverable",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": []
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Regression guard - exactly one callback",
+      "traceId": "TRACE_14"
+    },
+    {
+      "id": "AUTH_P_010",
+      "description": "Double auth guard non-discoverable",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Regression guard - exactly one callback",
+      "traceId": "TRACE_15"
+    },
+    {
+      "id": "AUTH_P_012",
+      "description": "In-flight guard prevents double-submit",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": "USE_REGISTERED_CREDENTIAL"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Guards against double-tap & duplicate callbacks",
+      "traceId": "TRACE_20"
+    },
+    {
+      "id": "AUTH_P_013",
+      "description": "No automatic fallback non-discoverable to discoverable",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "dW5rbm93bi1pZA" }
+        ]
+      },
+      "expected": {
+        "success": false,
+        "errorType": "NotAllowedError"
+      },
+      "notes": "Fallback only via explicit user choice",
+      "traceId": "TRACE_21"
+    },
+    {
+      "id": "AUTH_P_019",
+      "description": "allowCredentials with multiple IDs, multiple match",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": "USE_MULTIPLE_CREDENTIALS"
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "User chooses between multiple matching credentials",
+      "traceId": "TRACE_ALLOW_05"
+    },
+    {
+      "id": "AUTH_P_022",
+      "description": "allowCredentials with transports hybrid",
+      "priority": "P0",
+      "parameters": {
+        "allowCredentials": [
+          { "id": "USE_REGISTERED_CREDENTIAL", "transports": ["hybrid"] }
+        ]
+      },
+      "expected": {
+        "success": true
+      },
+      "notes": "Cross-device authentication",
+      "traceId": "TRACE_ALLOW_08"
+    }
+  ],
+
+  "metadata": {
+    "priorities": {
+      "P0": "Critical - Must pass for release",
+      "P1": "Important - Should pass, minor issues acceptable",
+      "P2": "Nice to have - Edge cases and rare scenarios"
+    },
+    "placeholders": {
+      "USE_EXISTING_CREDENTIAL": "Replace with actual credential ID from a pre-registered credential",
+      "USE_REGISTERED_CREDENTIAL": "Replace with credential ID from registration step",
+      "USE_MULTIPLE_CREDENTIALS": "Replace with multiple credential IDs for picker test"
+    },
+    "biometricModes": {
+      "pass": "LambdaTest auto-approves biometric",
+      "fail": "LambdaTest simulates biometric failure",
+      "cancel": "LambdaTest simulates user pressing Cancel"
+    },
+    "source": "Synced with TESTCASES.csv from passkeyguard-ios repository"
+  }
+}

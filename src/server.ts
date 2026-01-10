@@ -56,6 +56,11 @@ app.use(express.static(path.join(__dirname, "../public")));
 // Apple App Attest Router
 app.use("/api/appattest", appAttestRouter);
 
+// FIDO E2E Test Router
+import testRouter from "./testing/test-controller";
+app.use("/api/test", testRouter);
+console.log("🧪 Test API endpoints registered at /api/test/*");
+
 // Import security config
 import { requiresAppAttest } from "./config/security-config";
 
