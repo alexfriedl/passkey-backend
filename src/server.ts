@@ -431,11 +431,24 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       // Test Result speichern wenn im Test-Modus
       if (isTestModeActive()) {
         const testConfig = getCurrentTestConfig();
+
+        // Extrahiere rawAuthnrData aus dem result für E2E Test-Validierung
+        const rawAuthnrData = result.authnrData.get('rawAuthnrData');
+        const authDataBuffer = rawAuthnrData ? Buffer.from(rawAuthnrData) : undefined;
+
         const testResult = createRegistrationResult(
           testConfig.testId || 'unknown',
           testConfig,
           true,
-          { rawRequest: req.body, rawResponse: simpleResult }
+          {
+            rawRequest: req.body,
+            rawResponse: simpleResult,
+            authenticatorData: authDataBuffer,
+            attestationObject: {
+              fmt: result.authnrData.get('fmt') || 'none',
+              attStmt: {}  // 'none' format hat keine attestation statement
+            }
+          }
         );
         testResultStore.addResult(testResult);
         console.log("🧪 Test result stored for:", testConfig.testId);
@@ -475,11 +488,29 @@ app.post("/api/register/verify", async (req: any, res: any) => {
           // Test Result speichern wenn im Test-Modus
           if (isTestModeActive()) {
             const testConfig = getCurrentTestConfig();
+
+            // Für iOS-Pfad: Parse authenticatorData aus dem attestationObject
+            let authDataBuffer: Buffer | undefined;
+            try {
+              const attObjBase64 = credential.response.attestationObject;
+              const attObjBuffer = Buffer.from(attObjBase64.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
+              const cbor = require('cbor');
+              const decoded = cbor.decodeFirstSync(attObjBuffer);
+              if (decoded.authData) {
+                authDataBuffer = Buffer.from(decoded.authData);
+              }
+            } catch (e) {
+              console.log('Could not parse authenticatorData for test result:', e);
+            }
+
             const testResult = createRegistrationResult(
               testConfig.testId || 'unknown',
               testConfig,
               true,
-              { rawRequest: req.body }
+              {
+                rawRequest: req.body,
+                authenticatorData: authDataBuffer
+              }
             );
             testResultStore.addResult(testResult);
             console.log("🧪 Test result stored (iOS path) for:", testConfig.testId);
