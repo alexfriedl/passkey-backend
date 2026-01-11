@@ -729,11 +729,21 @@ app.post("/api/login/verify", async (req: any, res: any) => {
     // Test Result speichern wenn im Test-Modus
     if (isTestModeActive()) {
       const testConfig = getCurrentTestConfig();
+
+      // Extract authenticatorData from the assertion for test analysis
+      let authenticatorDataBuffer: Buffer | undefined;
+      if (convertedAssertion.response?.authenticatorData) {
+        authenticatorDataBuffer = Buffer.from(convertedAssertion.response.authenticatorData);
+      }
+
       const testResult = createAuthenticationResult(
         testConfig.testId || 'unknown',
         testConfig,
         true,
-        { rawRequest: req.body }
+        {
+          authenticatorData: authenticatorDataBuffer,
+          rawRequest: req.body,
+        }
       );
       testResultStore.addResult(testResult);
       console.log("🧪 Auth test result stored for:", testConfig.testId);
