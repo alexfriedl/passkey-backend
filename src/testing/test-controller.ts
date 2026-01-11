@@ -234,6 +234,55 @@ router.get('/config', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/test/check-user
+ * Check if a user exists in the database (non-blocking)
+ * Used by E2E tests to determine if setup is needed
+ */
+router.get('/check-user', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = req.query.username as string;
+
+    if (!username) {
+      res.status(400).json({
+        success: false,
+        exists: false,
+        error: 'username query parameter is required',
+      });
+      return;
+    }
+
+    console.log(`[CHECK-USER] Checking if user exists: ${username}`);
+
+    const user = await User.findOne({ username });
+
+    if (user) {
+      console.log(`[CHECK-USER] ✅ User exists: ${username}`);
+      res.json({
+        success: true,
+        exists: true,
+        user: {
+          username: user.username,
+          createdAt: user.createdAt,
+        },
+      });
+    } else {
+      console.log(`[CHECK-USER] ❌ User does not exist: ${username}`);
+      res.json({
+        success: true,
+        exists: false,
+      });
+    }
+  } catch (error) {
+    console.error('Error checking user:', error);
+    res.status(500).json({
+      success: false,
+      exists: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * GET /api/test/wait-for-user
  * Wait for a user to be registered in the database
  * Used by E2E tests to ensure registration completes before authentication
