@@ -21,6 +21,8 @@ import appAttestRouter from "./appattest";
 import { verifyIOSRegistration } from "./ios-registration";
 import { registerIOSSimple } from "./ios-simple-registration";
 import { getChallenge } from "./challenge-store";
+import { testResultStore, createRegistrationResult, createAuthenticationResult } from './testing/test-results';
+import { getCurrentTestConfig, isTestModeActive } from './testing/test-controller';
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
 const pool = new Pool({
@@ -426,6 +428,19 @@ app.post("/api/register/verify", async (req: any, res: any) => {
 
       console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
 
+      // Test Result speichern wenn im Test-Modus
+      if (isTestModeActive()) {
+        const testConfig = getCurrentTestConfig();
+        const testResult = createRegistrationResult(
+          testConfig.testId || 'unknown',
+          testConfig,
+          true,
+          { rawRequest: req.body, rawResponse: simpleResult }
+        );
+        testResultStore.addResult(testResult);
+        console.log("🧪 Test result stored for:", testConfig.testId);
+      }
+
       // Antworte mit dem Ergebnis
       res.json({ success: true, ...simpleResult });
     } catch (error: any) {
@@ -456,9 +471,22 @@ app.post("/api/register/verify", async (req: any, res: any) => {
           }
           
           console.log("✅ iOS-compatible registration successful");
-          
+
+          // Test Result speichern wenn im Test-Modus
+          if (isTestModeActive()) {
+            const testConfig = getCurrentTestConfig();
+            const testResult = createRegistrationResult(
+              testConfig.testId || 'unknown',
+              testConfig,
+              true,
+              { rawRequest: req.body }
+            );
+            testResultStore.addResult(testResult);
+            console.log("🧪 Test result stored (iOS path) for:", testConfig.testId);
+          }
+
           // Return success with the original credential data
-          res.json({ 
+          res.json({
             success: true,
             attestationObject: credential.response.attestationObject,
             clientDataJSON: credential.response.clientDataJSON
@@ -587,6 +615,20 @@ app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
     const convertedAssertion = convertAssertionToArrayBuffers(assertion);
 
     const result = await verifyDiscoverableAuthentication(convertedAssertion, sessionId);
+
+    // Test Result speichern wenn im Test-Modus
+    if (isTestModeActive()) {
+      const testConfig = getCurrentTestConfig();
+      const testResult = createAuthenticationResult(
+        testConfig.testId || 'unknown',
+        testConfig,
+        true,
+        { rawRequest: req.body }
+      );
+      testResultStore.addResult(testResult);
+      console.log("🧪 Discoverable auth test result stored for:", testConfig.testId);
+    }
+
     res.json({ success: true, username: result.username });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Discoverable Authentifizierung:", error);
@@ -652,6 +694,20 @@ app.post("/api/login/verify", async (req: any, res: any) => {
     const convertedAssertion = convertAssertionToArrayBuffers(assertion);
     
     const result = await verifyAuthentication(convertedAssertion, publicKey, username);
+
+    // Test Result speichern wenn im Test-Modus
+    if (isTestModeActive()) {
+      const testConfig = getCurrentTestConfig();
+      const testResult = createAuthenticationResult(
+        testConfig.testId || 'unknown',
+        testConfig,
+        true,
+        { rawRequest: req.body }
+      );
+      testResultStore.addResult(testResult);
+      console.log("🧪 Auth test result stored for:", testConfig.testId);
+    }
+
     res.json({ success: true, result });
   } catch (error) {
     console.error("Fehler beim Verifizieren der Authentifizierung:", error);
