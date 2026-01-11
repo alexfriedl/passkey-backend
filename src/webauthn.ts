@@ -9,6 +9,7 @@ import { createPublicKey, randomBytes } from "crypto";
 import { createHash } from "crypto";
 import cbor from "cbor";
 import User, { IUser } from "./models/User";
+import { getCurrentTestConfig, isTestModeActive } from "./testing/test-controller";
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   return Buffer.from(new Uint8Array(buffer)).toString('base64');
@@ -382,8 +383,7 @@ export async function verifyRegistration(
 /**
  * Authentifizierung: Optionen für FIDO2-Login generieren.
  * Diese Funktion ruft fido2.assertionOptions() auf, speichert die Challenge und
- * setzt allowCredentials, falls der User in der Datenbank gefunden wird.
- * Wird kein registrierter User gefunden, wird ein Fehler geworfen.
+ * setzt allowCredentials basierend auf Test-Konfiguration oder Datenbank.
  */
 export async function generateAuthenticationOptions(
   username: string
@@ -401,29 +401,46 @@ export async function generateAuthenticationOptions(
   const user = await User.findOne({ username });
   console.log("Geladener User aus der DB:", user);
   if (!user) {
-    // Wenn kein registrierter User gefunden wird, werfen wir einen Fehler.
     console.error("Kein registrierter User gefunden für:", username);
     throw new Error("Kein registrierter User gefunden.");
   }
   console.log("User gefunden für allowCredentials:", user);
 
-  // WICHTIG: allowCredentials.id muss als Base64URL-String gesendet werden
-  // JSON kann keine ArrayBuffer serialisieren!
-  const credentialIdBase64 = user.credentialId;
-  console.log("credentialId (Base64URL):", credentialIdBase64);
+  // Bestimme allowCredentials basierend auf Test-Konfiguration
+  let allowCredentials: Array<{ type: string; id: string; transports?: string[] }> = [];
+
+  const testConfig = getCurrentTestConfig();
+  const isTestMode = isTestModeActive();
+
+  if (isTestMode && testConfig.allowCredentials && testConfig.allowCredentials.length > 0) {
+    // Test-Konfiguration hat explizite allowCredentials gesetzt
+    console.log("Test-Modus: Verwende allowCredentials aus Test-Konfiguration");
+    allowCredentials = testConfig.allowCredentials.map(cred => ({
+      type: "public-key",
+      id: cred.id,
+      transports: cred.transports || ["internal"],
+    }));
+  } else {
+    // Standard: Verwende registrierte Credential des Users
+    console.log("Standard-Modus: Verwende registrierte Credential des Users");
+    const credentialIdBase64 = user.credentialId;
+    console.log("credentialId (Base64URL):", credentialIdBase64);
+    allowCredentials = [
+      {
+        type: "public-key",
+        id: credentialIdBase64,
+        transports: ["internal"],
+      },
+    ];
+  }
 
   // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
   const responseOptions = {
     ...options,
-    challenge: challengeBase64, // Überschreibt die originale ArrayBuffer-Challenge
-    allowCredentials: [
-      {
-        type: "public-key",
-        id: credentialIdBase64, // Base64URL-String, Client konvertiert zu ArrayBuffer
-        transports: ["internal"],
-      },
-    ],
-    rp: { name: "LocalKeyApp" }, // Dummy-Daten, ggf. anpassen
+    challenge: challengeBase64,
+    allowCredentials: allowCredentials,
+    userVerification: isTestMode ? testConfig.userVerification : "preferred",
+    rp: { name: "LocalKeyApp" },
     user: { id: username, name: username },
   };
   console.log("allowCredentials gesetzt:", responseOptions.allowCredentials);
