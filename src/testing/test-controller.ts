@@ -283,6 +283,53 @@ router.get('/check-user', async (req: Request, res: Response): Promise<void> => 
 });
 
 /**
+ * DELETE /api/test/delete-user
+ * Delete a user from the database
+ * Used by E2E tests to ensure fresh registration on new devices
+ */
+router.delete('/delete-user', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const username = req.query.username as string;
+
+    if (!username) {
+      res.status(400).json({
+        success: false,
+        deleted: false,
+        error: 'username query parameter is required',
+      });
+      return;
+    }
+
+    console.log(`[DELETE-USER] Deleting user: ${username}`);
+
+    const result = await User.deleteOne({ username });
+
+    if (result.deletedCount > 0) {
+      console.log(`[DELETE-USER] ✅ User deleted: ${username}`);
+      res.json({
+        success: true,
+        deleted: true,
+        username,
+      });
+    } else {
+      console.log(`[DELETE-USER] ❌ User not found: ${username}`);
+      res.json({
+        success: true,
+        deleted: false,
+        error: `User "${username}" not found`,
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting user:', error);
+    res.status(500).json({
+      success: false,
+      deleted: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * GET /api/test/wait-for-user
  * Wait for a user to be registered in the database
  * Used by E2E tests to ensure registration completes before authentication
