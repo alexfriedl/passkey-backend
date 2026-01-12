@@ -329,6 +329,15 @@
         }
       }
 
+      // Pre-fill username from URL parameter
+      const urlParams = new URLSearchParams(window.location.search);
+      const usernameParam = urlParams.get('username');
+      if (usernameParam) {
+        document.getElementById('username-hw').value = usernameParam;
+        document.getElementById('username-auth').value = usernameParam;
+        console.log('[Demo-RP] Pre-filled username from URL:', usernameParam);
+      }
+
       // Initial status
       updateStatus('Bereit für Passkey-Registrierung', 'info');
     </script>
