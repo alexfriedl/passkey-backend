@@ -440,7 +440,19 @@ function validateConfig(config: TestConfiguration): string[] {
   }
 
   // Validate pubKeyCredParams (must be valid COSE algorithm identifiers)
-  const validAlgorithms = [-7, -35, -36, -37, -38, -39, -257, -258, -259];
+  // See: https://www.iana.org/assignments/cose/cose.xhtml#algorithms
+  const validAlgorithms = [
+    -7,   // ES256 (ECDSA w/ SHA-256, P-256)
+    -8,   // EdDSA (Ed25519, Ed448)
+    -35,  // ES384 (ECDSA w/ SHA-384, P-384)
+    -36,  // ES512 (ECDSA w/ SHA-512, P-521)
+    -37,  // PS256 (RSASSA-PSS w/ SHA-256)
+    -38,  // PS384 (RSASSA-PSS w/ SHA-384)
+    -39,  // PS512 (RSASSA-PSS w/ SHA-512)
+    -257, // RS256 (RSASSA-PKCS1-v1_5 w/ SHA-256)
+    -258, // RS384 (RSASSA-PKCS1-v1_5 w/ SHA-384)
+    -259, // RS512 (RSASSA-PKCS1-v1_5 w/ SHA-512)
+  ];
   for (const alg of config.pubKeyCredParams) {
     if (!validAlgorithms.includes(alg)) {
       errors.push(`Invalid algorithm in pubKeyCredParams: ${alg}`);
