@@ -24,6 +24,7 @@ import { registerIOSSimple } from "./ios-simple-registration";
 import { getChallenge } from "./challenge-store";
 import { testResultStore, createRegistrationResult, createAuthenticationResult } from './testing/test-results';
 import { getCurrentTestConfig, isTestModeActive } from './testing/test-controller';
+import { applyTestConfigToRegistrationOptions } from './testing/test-webauthn-config';
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
 const pool = new Pool({
@@ -258,7 +259,17 @@ app.post("/api/register", async (req: any, res: any) => {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
 
-    const options = await generateRegistrationOptions(username);
+    let options = await generateRegistrationOptions(username);
+
+    // Apply test config if in test mode (for excludeCredentials, etc.)
+    if (isTestModeActive()) {
+      const testConfig = getCurrentTestConfig();
+      console.log("🧪 Applying test config to registration options");
+      console.log("🧪 excludeCredentials count:", testConfig.excludeCredentials?.length || 0);
+      options = applyTestConfigToRegistrationOptions(options, testConfig);
+      console.log("🧪 Final options.excludeCredentials:", JSON.stringify(options.excludeCredentials, null, 2));
+    }
+
     res.json(options);
   } catch (error) {
     console.error("Fehler beim Erstellen der Registrierungschallenge:", error);
