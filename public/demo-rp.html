@@ -338,6 +338,20 @@
         console.log('[Demo-RP] Pre-filled username from URL:', usernameParam);
       }
 
+      // Autostart feature for E2E tests
+      const actionParam = urlParams.get('action');
+      if (actionParam === 'register' && usernameParam) {
+        console.log('[Demo-RP] Autostart: Triggering registration...');
+        setTimeout(() => {
+          hardwareBoundRegister();
+        }, 500);
+      } else if (actionParam === 'authenticate' && usernameParam) {
+        console.log('[Demo-RP] Autostart: Triggering authentication...');
+        setTimeout(() => {
+          hardwareBoundAuthenticate();
+        }, 500);
+      }
+
       // Initial status
       updateStatus('Bereit für Passkey-Registrierung', 'info');
     </script>
