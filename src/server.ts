@@ -448,6 +448,11 @@ app.post("/api/register/verify", async (req: any, res: any) => {
             attestationObject: {
               fmt: result.authnrData.get('fmt') || 'none',
               attStmt: {}  // 'none' format hat keine attestation statement
+            },
+            credential: {
+              id: credential.id,
+              rawId: credential.rawId,
+              type: credential.type || 'public-key'
             }
           }
         );
@@ -510,7 +515,12 @@ app.post("/api/register/verify", async (req: any, res: any) => {
               true,
               {
                 rawRequest: req.body,
-                authenticatorData: authDataBuffer
+                authenticatorData: authDataBuffer,
+                credential: {
+                  id: credential.id,
+                  rawId: credential.rawId,
+                  type: credential.type || 'public-key'
+                }
               }
             );
             testResultStore.addResult(testResult);
