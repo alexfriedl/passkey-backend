@@ -450,8 +450,8 @@ app.post("/api/register/verify", async (req: any, res: any) => {
               attStmt: {}  // 'none' format hat keine attestation statement
             },
             credential: {
-              id: credential.id,
-              rawId: credential.rawId,
+              id: typeof credential.id === 'string' ? credential.id : Buffer.from(credential.id).toString('base64url'),
+              rawId: typeof credential.rawId === 'string' ? credential.rawId : Buffer.from(credential.rawId).toString('base64url'),
               type: credential.type || 'public-key'
             }
           }
@@ -517,8 +517,8 @@ app.post("/api/register/verify", async (req: any, res: any) => {
                 rawRequest: req.body,
                 authenticatorData: authDataBuffer,
                 credential: {
-                  id: credential.id,
-                  rawId: credential.rawId,
+                  id: typeof credential.id === 'string' ? credential.id : Buffer.from(credential.id).toString('base64url'),
+                  rawId: typeof credential.rawId === 'string' ? credential.rawId : Buffer.from(credential.rawId).toString('base64url'),
                   type: credential.type || 'public-key'
                 }
               }
