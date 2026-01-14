@@ -234,6 +234,51 @@ router.get('/config', (_req: Request, res: Response) => {
 });
 
 /**
+ * POST /api/test/error
+ * Record a client-side WebAuthn error for E2E testing
+ * Used when navigator.credentials.create/get fails on the client
+ */
+router.post('/error', (req: Request, res: Response): void => {
+  try {
+    const { errorType, errorMessage, operation } = req.body;
+
+    console.log('\n========== CLIENT ERROR RECEIVED ==========');
+    console.log('Test ID:', currentConfig.testId);
+    console.log('Error Type:', errorType);
+    console.log('Error Message:', errorMessage);
+    console.log('Operation:', operation || 'registration');
+    console.log('========== CLIENT ERROR END ==========\n');
+
+    // Store as a failed test result
+    const result: any = {
+      testId: currentConfig.testId || 'unknown',
+      timestamp: new Date(),
+      operation: operation || 'registration',
+      parameters: currentConfig,
+      success: false,
+      errorType: errorType || 'UnknownError',
+      errorMessage: errorMessage || 'Unknown client error',
+    };
+
+    testResultStore.addResult(result);
+
+    console.log(`🧪 Client error recorded for test: ${currentConfig.testId}`);
+
+    res.json({
+      success: true,
+      recorded: true,
+      testId: currentConfig.testId,
+    });
+  } catch (error) {
+    console.error('Error recording client error:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * GET /api/test/check-user
  * Check if a user exists in the database (non-blocking)
  * Used by E2E tests to determine if setup is needed

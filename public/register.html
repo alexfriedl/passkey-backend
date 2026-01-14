@@ -305,6 +305,22 @@
           logDebug("Fehler bei credential.create: " + err);
           document.getElementById("status").textContent =
             "Fehler bei credential.create: " + err;
+
+          // Report error to server for E2E testing (REG_P_038: excludeCredentials)
+          try {
+            await fetch('/api/test/error', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                errorType: err.name || 'UnknownError',
+                errorMessage: err.message || String(err),
+                operation: 'registration'
+              })
+            });
+            logDebug("Error reported to test server: " + err.name);
+          } catch (reportErr) {
+            logDebug("Failed to report error to test server: " + reportErr);
+          }
           return;
         }
 
