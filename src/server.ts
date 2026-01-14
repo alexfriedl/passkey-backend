@@ -16,6 +16,7 @@ import {
 } from "./webauthn";
 import path from "path";
 import { connectDB } from "./mongodb";
+import User from "./models/User";
 import { Pool } from "pg";
 import appAttestRouter from "./appattest";
 import { verifyIOSRegistration } from "./ios-registration";
@@ -778,6 +779,64 @@ app.post("/api/debugging", async (req: any, res: any) => {
   } catch (error) {
     console.error("Fehler beim Speichern der Debugging-Daten:", error);
     res.status(500).json({ error: "Fehler beim Speichern der Debugging-Daten" });
+  }
+});
+
+/**
+ * 🔹 User-Liste Endpoint
+ * GET /api/users
+ * Gibt alle registrierten User zurück
+ */
+app.get("/api/users", async (req: any, res: any) => {
+  try {
+    const users = await User.find({}, 'username registrationPlatform createdAt').lean();
+    const totalUsers = users.length;
+
+    res.json({
+      totalUsers,
+      users: users.map(u => ({
+        username: u.username,
+        platform: u.registrationPlatform || 'unknown',
+        createdAt: u.createdAt || null
+      }))
+    });
+  } catch (error) {
+    console.error("Fehler beim Abrufen der User:", error);
+    res.status(500).json({ error: "Fehler beim Abrufen der User" });
+  }
+});
+
+/**
+ * 🔹 User löschen Endpoint
+ * DELETE /api/users/:username
+ */
+app.delete("/api/users/:username", async (req: any, res: any) => {
+  try {
+    const { username } = req.params;
+    const result = await User.deleteOne({ username });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ error: "User nicht gefunden" });
+    }
+
+    res.json({ success: true, message: `User ${username} gelöscht` });
+  } catch (error) {
+    console.error("Fehler beim Löschen des Users:", error);
+    res.status(500).json({ error: "Fehler beim Löschen des Users" });
+  }
+});
+
+/**
+ * 🔹 Alle User löschen Endpoint
+ * DELETE /api/users
+ */
+app.delete("/api/users", async (req: any, res: any) => {
+  try {
+    const result = await User.deleteMany({});
+    res.json({ success: true, deletedCount: result.deletedCount });
+  } catch (error) {
+    console.error("Fehler beim Löschen aller User:", error);
+    res.status(500).json({ error: "Fehler beim Löschen aller User" });
   }
 });
 

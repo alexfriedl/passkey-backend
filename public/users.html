@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrierte User</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #1a1a2e;
+      color: #eee;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    h1 {
+      margin-bottom: 10px;
+      color: #fff;
+    }
+    .stats {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #16213e;
+      border-radius: 8px;
+      display: flex;
+      gap: 30px;
+      align-items: center;
+    }
+    .stat {
+      text-align: center;
+    }
+    .stat-value {
+      font-size: 2em;
+      font-weight: bold;
+      color: #4ecca3;
+    }
+    .stat-label {
+      font-size: 0.9em;
+      color: #888;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: #16213e;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px 15px;
+      text-align: left;
+      border-bottom: 1px solid #2a2a4a;
+    }
+    th {
+      background: #0f3460;
+      font-weight: 600;
+      color: #4ecca3;
+    }
+    tr:hover {
+      background: #1f3a5f;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    .platform {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.85em;
+    }
+    .platform-ios {
+      background: #3b82f6;
+      color: white;
+    }
+    .platform-unknown {
+      background: #6b7280;
+      color: white;
+    }
+    .date {
+      color: #888;
+      font-size: 0.9em;
+    }
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: #888;
+    }
+    .error {
+      color: #ef4444;
+      padding: 20px;
+      text-align: center;
+    }
+    .delete-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.85em;
+    }
+    .delete-btn:hover {
+      background: #dc2626;
+    }
+    .delete-selected-btn {
+      background: #ef4444;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+      margin-left: auto;
+    }
+    .delete-selected-btn:hover {
+      background: #dc2626;
+    }
+    .delete-selected-btn:disabled {
+      background: #6b7280;
+      cursor: not-allowed;
+    }
+    .checkbox-cell {
+      width: 40px;
+      text-align: center;
+    }
+    input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #4ecca3;
+    }
+    .selected-count {
+      color: #4ecca3;
+      font-size: 0.9em;
+      margin-right: 10px;
+    }
+    .filter-bar {
+      margin-bottom: 15px;
+      display: flex;
+      gap: 15px;
+      align-items: center;
+    }
+    .filter-bar input {
+      flex: 1;
+      max-width: 400px;
+      padding: 10px 15px;
+      border: 1px solid #2a2a4a;
+      border-radius: 4px;
+      background: #16213e;
+      color: #eee;
+      font-size: 0.95em;
+    }
+    .filter-bar input:focus {
+      outline: none;
+      border-color: #4ecca3;
+    }
+    .filter-bar input::placeholder {
+      color: #666;
+    }
+    .filter-count {
+      color: #888;
+      font-size: 0.9em;
+    }
+    .select-filtered-btn {
+      background: #4ecca3;
+      color: #1a1a2e;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9em;
+      font-weight: 500;
+    }
+    .select-filtered-btn:hover {
+      background: #3db892;
+    }
+    .select-filtered-btn:disabled {
+      background: #6b7280;
+      color: #999;
+      cursor: not-allowed;
+    }
+    tr.hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Registrierte User</h1>
+
+    <div class="stats">
+      <div class="stat">
+        <div class="stat-value" id="totalUsers">-</div>
+        <div class="stat-label">Total Users</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="iosUsers">-</div>
+        <div class="stat-label">iOS Extension</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value" id="unknownUsers">-</div>
+        <div class="stat-label">Web/Unknown</div>
+      </div>
+      <span class="selected-count" id="selectedCount"></span>
+      <button class="delete-selected-btn" id="deleteSelectedBtn" onclick="deleteSelected()" disabled>Ausgewaehlte loeschen</button>
+    </div>
+
+    <div class="filter-bar">
+      <input type="text" id="filterInput" placeholder="Filter nach Username..." oninput="filterUsers()">
+      <span class="filter-count" id="filterCount"></span>
+      <button class="select-filtered-btn" id="selectFilteredBtn" onclick="selectFiltered()" disabled>Gefilterte markieren</button>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="checkbox-cell">
+            <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+          </th>
+          <th>#</th>
+          <th>Username</th>
+          <th>Platform</th>
+          <th>Registriert</th>
+        </tr>
+      </thead>
+      <tbody id="userTable">
+        <tr>
+          <td colspan="5" class="loading">Lade User...</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    let allUsers = [];
+
+    async function loadUsers() {
+      try {
+        const response = await fetch('/api/users');
+        const data = await response.json();
+        allUsers = data.users;
+
+        // Stats aktualisieren
+        document.getElementById('totalUsers').textContent = data.totalUsers;
+        const iosCount = data.users.filter(u => u.platform === 'ios-extension').length;
+        document.getElementById('iosUsers').textContent = iosCount;
+        document.getElementById('unknownUsers').textContent = data.totalUsers - iosCount;
+
+        // Tabelle befuellen
+        const tbody = document.getElementById('userTable');
+
+        if (data.users.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="5" class="loading">Keine User gefunden</td></tr>';
+          return;
+        }
+
+        tbody.innerHTML = data.users.map((user, index) => `
+          <tr>
+            <td class="checkbox-cell">
+              <input type="checkbox" class="user-checkbox" data-username="${escapeHtml(user.username)}" onchange="updateSelectedCount()">
+            </td>
+            <td>${index + 1}</td>
+            <td>${escapeHtml(user.username)}</td>
+            <td>
+              <span class="platform ${user.platform === 'ios-extension' ? 'platform-ios' : 'platform-unknown'}">
+                ${user.platform}
+              </span>
+            </td>
+            <td class="date">${user.createdAt ? new Date(user.createdAt).toLocaleString('de-DE') : '-'}</td>
+          </tr>
+        `).join('');
+
+        updateSelectedCount();
+
+      } catch (error) {
+        document.getElementById('userTable').innerHTML =
+          '<tr><td colspan="5" class="error">Fehler beim Laden der User</td></tr>';
+        console.error('Error:', error);
+      }
+    }
+
+    function toggleSelectAll() {
+      const selectAll = document.getElementById('selectAll');
+      const checkboxes = document.querySelectorAll('.user-checkbox');
+      checkboxes.forEach(cb => cb.checked = selectAll.checked);
+      updateSelectedCount();
+    }
+
+    function updateSelectedCount() {
+      const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+      const count = checkboxes.length;
+      const countEl = document.getElementById('selectedCount');
+      const btn = document.getElementById('deleteSelectedBtn');
+
+      if (count > 0) {
+        countEl.textContent = `${count} ausgewaehlt`;
+        btn.disabled = false;
+      } else {
+        countEl.textContent = '';
+        btn.disabled = true;
+      }
+
+      // Update "select all" checkbox state
+      const allCheckboxes = document.querySelectorAll('.user-checkbox');
+      const selectAll = document.getElementById('selectAll');
+      selectAll.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+      selectAll.indeterminate = count > 0 && count < allCheckboxes.length;
+    }
+
+    async function deleteSelected() {
+      const checkboxes = document.querySelectorAll('.user-checkbox:checked');
+      const usernames = Array.from(checkboxes).map(cb => cb.dataset.username);
+
+      if (usernames.length === 0) return;
+
+      const confirmMsg = usernames.length === allUsers.length
+        ? `ALLE ${usernames.length} User wirklich loeschen?`
+        : `${usernames.length} User wirklich loeschen?`;
+
+      if (!confirm(confirmMsg)) return;
+
+      let deleted = 0;
+      let failed = 0;
+
+      for (const username of usernames) {
+        try {
+          const response = await fetch(`/api/users/${encodeURIComponent(username)}`, {
+            method: 'DELETE'
+          });
+          if (response.ok) {
+            deleted++;
+          } else {
+            failed++;
+          }
+        } catch (error) {
+          failed++;
+        }
+      }
+
+      if (failed > 0) {
+        alert(`${deleted} geloescht, ${failed} fehlgeschlagen`);
+      }
+
+      loadUsers();
+    }
+
+    function filterUsers() {
+      const filter = document.getElementById('filterInput').value.toLowerCase();
+      const rows = document.querySelectorAll('#userTable tr');
+      let visibleCount = 0;
+
+      rows.forEach(row => {
+        const username = row.querySelector('td:nth-child(3)')?.textContent?.toLowerCase() || '';
+        const platform = row.querySelector('td:nth-child(4)')?.textContent?.toLowerCase() || '';
+
+        if (username.includes(filter) || platform.includes(filter)) {
+          row.classList.remove('hidden');
+          visibleCount++;
+        } else {
+          row.classList.add('hidden');
+        }
+      });
+
+      // Update filter count
+      const filterCountEl = document.getElementById('filterCount');
+      const selectFilteredBtn = document.getElementById('selectFilteredBtn');
+
+      if (filter) {
+        filterCountEl.textContent = `${visibleCount} von ${allUsers.length} angezeigt`;
+        selectFilteredBtn.disabled = visibleCount === 0;
+      } else {
+        filterCountEl.textContent = '';
+        selectFilteredBtn.disabled = true;
+      }
+    }
+
+    function selectFiltered() {
+      const rows = document.querySelectorAll('#userTable tr:not(.hidden)');
+      rows.forEach(row => {
+        const checkbox = row.querySelector('.user-checkbox');
+        if (checkbox) checkbox.checked = true;
+      });
+      updateSelectedCount();
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Beim Laden ausfuehren
+    loadUsers();
+  </script>
+</body>
+</html>
