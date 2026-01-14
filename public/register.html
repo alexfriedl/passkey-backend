@@ -289,6 +289,15 @@
           options.user.id = base64ToArrayBuffer(options.user.id);
         }
 
+        // Convert excludeCredentials[].id from Base64 to ArrayBuffer (REG_P_038)
+        if (options.excludeCredentials && Array.isArray(options.excludeCredentials)) {
+          logDebug(`Wandle ${options.excludeCredentials.length} excludeCredentials.id von Base64 zu ArrayBuffer um.`);
+          options.excludeCredentials = options.excludeCredentials.map(cred => ({
+            ...cred,
+            id: typeof cred.id === "string" ? base64ToArrayBuffer(cred.id) : cred.id
+          }));
+        }
+
         // Schritt 2: Passkey-Erstellung via WebAuthn
         let credential;
         try {
