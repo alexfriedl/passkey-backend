@@ -175,7 +175,8 @@
         // This is needed because iOS WebView cannot see PasskeyGuard's credential storage
         let excludeCredentialsParam = '';
         try {
-          const configRes = await fetch('/api/test/config');
+          // Add cache-busting timestamp to avoid 304 responses
+          const configRes = await fetch('/api/test/config?_t=' + Date.now(), { cache: 'no-store' });
           if (configRes.ok) {
             const config = await configRes.json();
             if (config.excludeCredentials?.length > 0) {
