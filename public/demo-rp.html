@@ -173,23 +173,40 @@
 
         // REG_P_038: Fetch test config to get excludeCredentials BEFORE building DeepLink
         // This is needed because iOS WebView cannot see PasskeyGuard's credential storage
+        // Use retry logic to handle race condition where config might not be ready yet
         let excludeCredentialsParam = '';
-        try {
-          // Add cache-busting timestamp to avoid 304 responses
-          const configRes = await fetch('/api/test/config?_t=' + Date.now(), { cache: 'no-store' });
-          if (configRes.ok) {
-            const response = await configRes.json();
-            // API returns { success: true, config: { excludeCredentials: [...] } }
-            const testConfig = response.config || response;
-            if (testConfig.excludeCredentials?.length > 0) {
-              const excludeIds = testConfig.excludeCredentials.map(c => c.id);
-              const encodedExclude = btoa(JSON.stringify(excludeIds));
-              excludeCredentialsParam = `&excludeCredentialIds=${encodedExclude}`;
-              console.log('[Demo-RP] REG_P_038: Adding excludeCredentials to DeepLink:', excludeIds.length);
+        for (let attempt = 0; attempt < 3; attempt++) {
+          try {
+            // Add cache-busting timestamp and headers to avoid stale responses
+            const configRes = await fetch('/api/test/config?_t=' + Date.now(), {
+              cache: 'no-store',
+              headers: {
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                'Pragma': 'no-cache'
+              }
+            });
+            if (configRes.ok) {
+              const response = await configRes.json();
+              console.log('[Demo-RP] /api/test/config response (attempt ' + (attempt + 1) + '):', JSON.stringify(response, null, 2));
+              // API returns { success: true, config: { excludeCredentials: [...] } }
+              const testConfig = response.config || response;
+              if (testConfig.excludeCredentials?.length > 0) {
+                const excludeIds = testConfig.excludeCredentials.map(c => c.id);
+                const encodedExclude = btoa(JSON.stringify(excludeIds));
+                excludeCredentialsParam = `&excludeCredentialIds=${encodedExclude}`;
+                console.log('[Demo-RP] REG_P_038: Found excludeCredentials on attempt', attempt + 1, '- IDs:', excludeIds);
+                break;
+              } else {
+                console.log('[Demo-RP] No excludeCredentials in config on attempt', attempt + 1);
+              }
             }
+          } catch (e) {
+            console.log('[Demo-RP] Config fetch attempt', attempt + 1, 'failed:', e.message);
           }
-        } catch (e) {
-          console.log('[Demo-RP] No test config available:', e.message);
+          // Wait 500ms before retry (unless this was the last attempt)
+          if (attempt < 2) {
+            await new Promise(r => setTimeout(r, 500));
+          }
         }
 
         // Create deeplink to PasskeyGuard app with RP origin
@@ -205,6 +222,11 @@
         // Deeplink to PasskeyGuard app with returnURL fallback to success.html
         const returnUrl = `${currentOrigin}/success.html`;
         const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
+
+        // Debug logging for E2E troubleshooting
+        console.log('[Demo-RP] registerUrl:', registerUrl);
+        console.log('[Demo-RP] excludeCredentialsParam:', excludeCredentialsParam);
+        console.log('[Demo-RP] Final deeplink:', deeplink);
 
         updateStatus(`
           🚀 <strong>Deeplink generiert:</strong><br>
