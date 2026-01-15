@@ -295,7 +295,62 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     if (req.body.originApp) {
       console.log("🔗 DEBUG: originApp detected:", req.body.originApp);
     }
-    
+
+    // REG_P_038: Server-side excludeCredentials check
+    // This is needed because PasskeyGuard stores credentials in its own database,
+    // not in iCloud Keychain, so the browser cannot perform this check.
+    if (isTestModeActive()) {
+      const testConfig = getCurrentTestConfig();
+      const credentialId = req.body.credential?.id || req.body.credential?.rawId;
+
+      if (testConfig.excludeCredentials && testConfig.excludeCredentials.length > 0 && credentialId) {
+        console.log("🧪 REG_P_038: Checking excludeCredentials server-side");
+        console.log("🧪 Incoming credentialId:", credentialId);
+        console.log("🧪 excludeCredentials:", JSON.stringify(testConfig.excludeCredentials));
+
+        // Check if the credential ID matches any in excludeCredentials
+        const isExcluded = testConfig.excludeCredentials.some((excluded: any) => {
+          // Compare both Base64 and Base64URL variants
+          const excludedId = excluded.id;
+          const normalizedExcluded = excludedId.replace(/-/g, '+').replace(/_/g, '/');
+          const normalizedIncoming = credentialId.replace(/-/g, '+').replace(/_/g, '/');
+
+          const matches = normalizedExcluded === normalizedIncoming ||
+                         excludedId === credentialId;
+
+          console.log(`🧪 Comparing: excluded="${excludedId}" vs incoming="${credentialId}" => ${matches}`);
+          return matches;
+        });
+
+        if (isExcluded) {
+          console.log("🧪 ❌ REG_P_038: Credential ID is in excludeCredentials - blocking registration");
+
+          // Store error result for E2E test
+          const testResult = createRegistrationResult(
+            testConfig.testId || 'unknown',
+            testConfig,
+            false,
+            {
+              errorType: 'InvalidStateError',
+              errorMessage: 'Credential already exists (excludeCredentials)',
+              rawRequest: req.body
+            }
+          );
+          testResultStore.addResult(testResult);
+
+          // Return error matching WebAuthn InvalidStateError
+          return res.status(400).json({
+            success: false,
+            error: "InvalidStateError",
+            errorType: "InvalidStateError",
+            message: "A credential with the given ID already exists on this authenticator"
+          });
+        }
+
+        console.log("🧪 ✅ REG_P_038: Credential ID not in excludeCredentials - proceeding");
+      }
+    }
+
     // Helper function to format Buffer data
     const formatBuffer = (buffer: Buffer, maxBytes: number = 50): string => {
       if (!Buffer.isBuffer(buffer)) return 'Not a buffer';
