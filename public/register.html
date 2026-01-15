@@ -289,37 +289,13 @@
           options.user.id = base64ToArrayBuffer(options.user.id);
         }
 
-        // Convert excludeCredentials[].id from Base64 to ArrayBuffer (REG_P_038)
-        // First, save the Base64 IDs for URL encoding (before ArrayBuffer conversion)
-        let excludeCredentialIdsBase64 = [];
+        // Convert excludeCredentials[].id from Base64 to ArrayBuffer
         if (options.excludeCredentials && Array.isArray(options.excludeCredentials)) {
-          // Save Base64 IDs before conversion (for URL encoding to iOS App)
-          excludeCredentialIdsBase64 = options.excludeCredentials
-            .map(cred => typeof cred.id === "string" ? cred.id : null)
-            .filter(id => id !== null);
-
           logDebug(`Wandle ${options.excludeCredentials.length} excludeCredentials.id von Base64 zu ArrayBuffer um.`);
           options.excludeCredentials = options.excludeCredentials.map(cred => ({
             ...cred,
             id: typeof cred.id === "string" ? base64ToArrayBuffer(cred.id) : cred.id
           }));
-        }
-
-        // REG_P_038: Encode excludeCredentials in URL for PasskeyGuard iOS (FIDO-konform)
-        // This is needed because iOS WebView cannot see PasskeyGuard's credential storage.
-        // The App reads these from the URL and performs the check locally on the Authenticator.
-        // Reference: W3C WebAuthn Level 2 §5.1.3 - Authenticator must check excludeCredentials
-        const isHardwareBound = urlParams.get('hw') === 'true';
-        if (isHardwareBound && excludeCredentialIdsBase64.length > 0) {
-          // Encode as Base64 JSON array for URL transport
-          const encodedExclude = btoa(JSON.stringify(excludeCredentialIdsBase64));
-
-          // Update URL with excludeCredentialIds parameter (no page reload)
-          const url = new URL(window.location.href);
-          url.searchParams.set('excludeCredentialIds', encodedExclude);
-          history.replaceState(null, '', url.toString());
-
-          logDebug('🔍 REG_P_038: excludeCredentials encoded in URL for iOS App: ' + excludeCredentialIdsBase64.length + ' IDs');
         }
 
         // Schritt 2: Passkey-Erstellung via WebAuthn

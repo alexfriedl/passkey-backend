@@ -162,7 +162,7 @@
         window.location.href = `/register.html?username=${encodeURIComponent(username)}`;
       }
 
-      function hardwareBoundRegister() {
+      async function hardwareBoundRegister() {
         const username = document.getElementById('username-hw').value;
         if (!username) {
           updateStatus('❌ Bitte Benutzername eingeben!', 'error');
@@ -171,20 +171,38 @@
 
         updateStatus('🔒 Starte Hardware-bound Registrierung...', 'info');
 
+        // REG_P_038: Fetch test config to get excludeCredentials BEFORE building DeepLink
+        // This is needed because iOS WebView cannot see PasskeyGuard's credential storage
+        let excludeCredentialsParam = '';
+        try {
+          const configRes = await fetch('/api/test/config');
+          if (configRes.ok) {
+            const config = await configRes.json();
+            if (config.excludeCredentials?.length > 0) {
+              const excludeIds = config.excludeCredentials.map(c => c.id);
+              const encodedExclude = btoa(JSON.stringify(excludeIds));
+              excludeCredentialsParam = `&excludeCredentialIds=${encodedExclude}`;
+              console.log('[Demo-RP] REG_P_038: Adding excludeCredentials to DeepLink:', excludeIds.length);
+            }
+          }
+        } catch (e) {
+          console.log('[Demo-RP] No test config available:', e.message);
+        }
+
         // Create deeplink to PasskeyGuard app with RP origin
         const currentOrigin = window.location.origin;
-        const registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true`;
-        
+        let registerUrl = `${currentOrigin}/register.html?username=${encodeURIComponent(username)}&hw=true${excludeCredentialsParam}`;
+
         // If we have pending DCAppAttest data, include it in the URL
         if (pendingDCAppAttestData) {
           const dcAppAttestParam = encodeURIComponent(JSON.stringify(pendingDCAppAttestData));
           registerUrl += `&dcAppAttest=${dcAppAttestParam}`;
         }
-        
+
         // Deeplink to PasskeyGuard app with returnURL fallback to success.html
         const returnUrl = `${currentOrigin}/success.html`;
         const deeplink = `passkeyguard://?origin=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
-        
+
         updateStatus(`
           🚀 <strong>Deeplink generiert:</strong><br>
           <code>${deeplink}</code><br><br>
