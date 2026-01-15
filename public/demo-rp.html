@@ -178,9 +178,11 @@
           // Add cache-busting timestamp to avoid 304 responses
           const configRes = await fetch('/api/test/config?_t=' + Date.now(), { cache: 'no-store' });
           if (configRes.ok) {
-            const config = await configRes.json();
-            if (config.excludeCredentials?.length > 0) {
-              const excludeIds = config.excludeCredentials.map(c => c.id);
+            const response = await configRes.json();
+            // API returns { success: true, config: { excludeCredentials: [...] } }
+            const testConfig = response.config || response;
+            if (testConfig.excludeCredentials?.length > 0) {
+              const excludeIds = testConfig.excludeCredentials.map(c => c.id);
               const encodedExclude = btoa(JSON.stringify(excludeIds));
               excludeCredentialsParam = `&excludeCredentialIds=${encodedExclude}`;
               console.log('[Demo-RP] REG_P_038: Adding excludeCredentials to DeepLink:', excludeIds.length);
