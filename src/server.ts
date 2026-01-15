@@ -297,57 +297,51 @@ app.post("/api/register/verify", async (req: any, res: any) => {
     }
 
     // REG_P_038: Server-side excludeCredentials check
+    // This checks if ANY of the excludeCredentials IDs already exist in our database.
     // This is needed because PasskeyGuard stores credentials in its own database,
     // not in iCloud Keychain, so the browser cannot perform this check.
     if (isTestModeActive()) {
       const testConfig = getCurrentTestConfig();
-      const credentialId = req.body.credential?.id || req.body.credential?.rawId;
 
-      if (testConfig.excludeCredentials && testConfig.excludeCredentials.length > 0 && credentialId) {
+      if (testConfig.excludeCredentials && testConfig.excludeCredentials.length > 0) {
         console.log("🧪 REG_P_038: Checking excludeCredentials server-side");
-        console.log("🧪 Incoming credentialId:", credentialId);
         console.log("🧪 excludeCredentials:", JSON.stringify(testConfig.excludeCredentials));
 
-        // Check if the credential ID matches any in excludeCredentials
-        const isExcluded = testConfig.excludeCredentials.some((excluded: any) => {
-          // Compare both Base64 and Base64URL variants
-          const excludedId = excluded.id;
-          const normalizedExcluded = excludedId.replace(/-/g, '+').replace(/_/g, '/');
-          const normalizedIncoming = credentialId.replace(/-/g, '+').replace(/_/g, '/');
+        // Check if ANY of the excludeCredentials exist in the database
+        for (const excluded of testConfig.excludeCredentials) {
+          const excludedId = (excluded as any).id;
+          console.log(`🧪 Checking if credential "${excludedId}" exists in database...`);
 
-          const matches = normalizedExcluded === normalizedIncoming ||
-                         excludedId === credentialId;
+          // Search for this credential ID in the database
+          const existingUser = await User.findOne({ credentialId: excludedId });
 
-          console.log(`🧪 Comparing: excluded="${excludedId}" vs incoming="${credentialId}" => ${matches}`);
-          return matches;
-        });
+          if (existingUser) {
+            console.log(`🧪 ❌ REG_P_038: Credential "${excludedId}" exists for user "${existingUser.username}" - blocking registration`);
 
-        if (isExcluded) {
-          console.log("🧪 ❌ REG_P_038: Credential ID is in excludeCredentials - blocking registration");
+            // Store error result for E2E test
+            const testResult = createRegistrationResult(
+              testConfig.testId || 'unknown',
+              testConfig,
+              false,
+              {
+                errorType: 'InvalidStateError',
+                errorMessage: 'Credential already exists (excludeCredentials)',
+                rawRequest: req.body
+              }
+            );
+            testResultStore.addResult(testResult);
 
-          // Store error result for E2E test
-          const testResult = createRegistrationResult(
-            testConfig.testId || 'unknown',
-            testConfig,
-            false,
-            {
-              errorType: 'InvalidStateError',
-              errorMessage: 'Credential already exists (excludeCredentials)',
-              rawRequest: req.body
-            }
-          );
-          testResultStore.addResult(testResult);
-
-          // Return error matching WebAuthn InvalidStateError
-          return res.status(400).json({
-            success: false,
-            error: "InvalidStateError",
-            errorType: "InvalidStateError",
-            message: "A credential with the given ID already exists on this authenticator"
-          });
+            // Return error matching WebAuthn InvalidStateError
+            return res.status(400).json({
+              success: false,
+              error: "InvalidStateError",
+              errorType: "InvalidStateError",
+              message: "A credential with the given ID already exists on this authenticator"
+            });
+          }
         }
 
-        console.log("🧪 ✅ REG_P_038: Credential ID not in excludeCredentials - proceeding");
+        console.log("🧪 ✅ REG_P_038: None of the excludeCredentials exist in database - proceeding");
       }
     }
 
