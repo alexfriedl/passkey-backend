@@ -104,10 +104,13 @@ router.post('/configure', (req: Request, res: Response): void => {
     console.log('Active configuration:', JSON.stringify(newConfig, null, 2));
     console.log('========== TEST CONFIGURE END ==========\n');
 
+    // Return config without testId (it's already a top-level field)
+    const { testId: _excludeTestId, ...configWithoutTestId } = newConfig;
+
     res.json({
       success: true,
       testId,
-      config: newConfig,
+      config: configWithoutTestId,
     });
   } catch (error) {
     console.error('Error configuring test:', error);
