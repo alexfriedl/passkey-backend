@@ -23,7 +23,7 @@ import { verifyIOSRegistration } from "./ios-registration";
 import { registerIOSSimple } from "./ios-simple-registration";
 import { getChallenge } from "./challenge-store";
 import { testResultStore, createRegistrationResult, createAuthenticationResult } from './testing/test-results';
-import { getCurrentTestConfig, isTestModeActive } from './testing/test-controller';
+import { getCurrentTestConfig, isTestModeActive, getConfigByTestId } from './testing/test-controller';
 import { applyTestConfigToRegistrationOptions } from './testing/test-webauthn-config';
 
 // Configure PostgreSQL connection (Neon Postgres on Heroku)
@@ -259,12 +259,27 @@ app.post("/api/register", async (req: any, res: any) => {
       return res.status(400).json({ error: "Username ist erforderlich" });
     }
 
+    // Check for testId (E2E parallel test support)
+    const testId = req.body.testId;
+
     let options = await generateRegistrationOptions(username);
 
-    // Apply test config if in test mode (for excludeCredentials, etc.)
-    if (isTestModeActive()) {
+    // Apply test config if testId is provided or in legacy test mode
+    if (testId) {
+      // New: Use config from configStore by testId
+      const testConfig = getConfigByTestId(testId);
+      if (testConfig) {
+        console.log(`🧪 Applying test config for testId: ${testId}`);
+        console.log("🧪 excludeCredentials count:", testConfig.excludeCredentials?.length || 0);
+        options = applyTestConfigToRegistrationOptions(options, testConfig);
+        console.log("🧪 Final options.excludeCredentials:", JSON.stringify(options.excludeCredentials, null, 2));
+      } else {
+        console.log(`⚠️ TestId ${testId} provided but no config found in store`);
+      }
+    } else if (isTestModeActive()) {
+      // Legacy: Use global currentConfig
       const testConfig = getCurrentTestConfig();
-      console.log("🧪 Applying test config to registration options");
+      console.log("🧪 Applying test config to registration options (legacy mode)");
       console.log("🧪 excludeCredentials count:", testConfig.excludeCredentials?.length || 0);
       options = applyTestConfigToRegistrationOptions(options, testConfig);
       console.log("🧪 Final options.excludeCredentials:", JSON.stringify(options.excludeCredentials, null, 2));
@@ -296,53 +311,54 @@ app.post("/api/register/verify", async (req: any, res: any) => {
       console.log("🔗 DEBUG: originApp detected:", req.body.originApp);
     }
 
+    // Check for testId (E2E parallel test support)
+    const testId = req.body.testId;
+
     // REG_P_038: Server-side excludeCredentials check
     // This checks if ANY of the excludeCredentials IDs already exist in our database.
     // This is needed because PasskeyGuard stores credentials in its own database,
     // not in iCloud Keychain, so the browser cannot perform this check.
-    if (isTestModeActive()) {
-      const testConfig = getCurrentTestConfig();
+    const testConfig = testId ? getConfigByTestId(testId) : (isTestModeActive() ? getCurrentTestConfig() : null);
 
-      if (testConfig.excludeCredentials && testConfig.excludeCredentials.length > 0) {
-        console.log("🧪 REG_P_038: Checking excludeCredentials server-side");
-        console.log("🧪 excludeCredentials:", JSON.stringify(testConfig.excludeCredentials));
+    if (testConfig && testConfig.excludeCredentials && testConfig.excludeCredentials.length > 0) {
+      console.log(`🧪 REG_P_038: Checking excludeCredentials server-side (testId: ${testId || 'legacy'})`);
+      console.log("🧪 excludeCredentials:", JSON.stringify(testConfig.excludeCredentials));
 
-        // Check if ANY of the excludeCredentials exist in the database
-        for (const excluded of testConfig.excludeCredentials) {
-          const excludedId = (excluded as any).id;
-          console.log(`🧪 Checking if credential "${excludedId}" exists in database...`);
+      // Check if ANY of the excludeCredentials exist in the database
+      for (const excluded of testConfig.excludeCredentials) {
+        const excludedId = (excluded as any).id;
+        console.log(`🧪 Checking if credential "${excludedId}" exists in database...`);
 
-          // Search for this credential ID in the database
-          const existingUser = await User.findOne({ credentialId: excludedId });
+        // Search for this credential ID in the database
+        const existingUser = await User.findOne({ credentialId: excludedId });
 
-          if (existingUser) {
-            console.log(`🧪 ❌ REG_P_038: Credential "${excludedId}" exists for user "${existingUser.username}" - blocking registration`);
+        if (existingUser) {
+          console.log(`🧪 ❌ REG_P_038: Credential "${excludedId}" exists for user "${existingUser.username}" - blocking registration`);
 
-            // Store error result for E2E test
-            const testResult = createRegistrationResult(
-              testConfig.testId || 'unknown',
-              testConfig,
-              false,
-              {
-                errorType: 'InvalidStateError',
-                errorMessage: 'Credential already exists (excludeCredentials)',
-                rawRequest: req.body
-              }
-            );
-            testResultStore.addResult(testResult);
+          // Store error result for E2E test
+          const testResult = createRegistrationResult(
+            testConfig.testId || testId || 'unknown',
+            testConfig,
+            false,
+            {
+              errorType: 'InvalidStateError',
+              errorMessage: 'Credential already exists (excludeCredentials)',
+              rawRequest: req.body
+            }
+          );
+          testResultStore.addResult(testResult);
 
-            // Return error matching WebAuthn InvalidStateError
-            return res.status(400).json({
-              success: false,
-              error: "InvalidStateError",
-              errorType: "InvalidStateError",
-              message: "A credential with the given ID already exists on this authenticator"
-            });
-          }
+          // Return error matching WebAuthn InvalidStateError
+          return res.status(400).json({
+            success: false,
+            error: "InvalidStateError",
+            errorType: "InvalidStateError",
+            message: "A credential with the given ID already exists on this authenticator"
+          });
         }
-
-        console.log("🧪 ✅ REG_P_038: None of the excludeCredentials exist in database - proceeding");
       }
+
+      console.log("🧪 ✅ REG_P_038: None of the excludeCredentials exist in database - proceeding");
     }
 
     // Helper function to format Buffer data
@@ -489,17 +505,16 @@ app.post("/api/register/verify", async (req: any, res: any) => {
 
       console.log("[REGISTER/VERIFY] Einfaches Ergebnis:", simpleResult);
 
-      // Test Result speichern wenn im Test-Modus
-      if (isTestModeActive()) {
-        const testConfig = getCurrentTestConfig();
-
+      // Test Result speichern wenn im Test-Modus oder testId vorhanden
+      const activeTestConfig = testId ? getConfigByTestId(testId) : (isTestModeActive() ? getCurrentTestConfig() : null);
+      if (activeTestConfig) {
         // Extrahiere rawAuthnrData aus dem result für E2E Test-Validierung
         const rawAuthnrData = result.authnrData.get('rawAuthnrData');
         const authDataBuffer = rawAuthnrData ? Buffer.from(rawAuthnrData) : undefined;
 
         const testResult = createRegistrationResult(
-          testConfig.testId || 'unknown',
-          testConfig,
+          activeTestConfig.testId || testId || 'unknown',
+          activeTestConfig,
           true,
           {
             rawRequest: req.body,
@@ -517,7 +532,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
           }
         );
         testResultStore.addResult(testResult);
-        console.log("🧪 Test result stored for:", testConfig.testId);
+        console.log(`🧪 Test result stored for: ${activeTestConfig.testId || testId}`);
       }
 
       // Antworte mit dem Ergebnis
@@ -551,10 +566,9 @@ app.post("/api/register/verify", async (req: any, res: any) => {
           
           console.log("✅ iOS-compatible registration successful");
 
-          // Test Result speichern wenn im Test-Modus
-          if (isTestModeActive()) {
-            const testConfig = getCurrentTestConfig();
-
+          // Test Result speichern wenn im Test-Modus oder testId vorhanden
+          const iosTestConfig = testId ? getConfigByTestId(testId) : (isTestModeActive() ? getCurrentTestConfig() : null);
+          if (iosTestConfig) {
             // Für iOS-Pfad: Parse authenticatorData aus dem attestationObject
             let authDataBuffer: Buffer | undefined;
             try {
@@ -570,8 +584,8 @@ app.post("/api/register/verify", async (req: any, res: any) => {
             }
 
             const testResult = createRegistrationResult(
-              testConfig.testId || 'unknown',
-              testConfig,
+              iosTestConfig.testId || testId || 'unknown',
+              iosTestConfig,
               true,
               {
                 rawRequest: req.body,
@@ -584,7 +598,7 @@ app.post("/api/register/verify", async (req: any, res: any) => {
               }
             );
             testResultStore.addResult(testResult);
-            console.log("🧪 Test result stored (iOS path) for:", testConfig.testId);
+            console.log(`🧪 Test result stored (iOS path) for: ${iosTestConfig.testId || testId}`);
           }
 
           // Return success with the original credential data
