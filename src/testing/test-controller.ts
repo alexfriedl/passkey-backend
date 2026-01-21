@@ -43,6 +43,16 @@ let currentConfig: TestConfiguration = {
   description: undefined,
 };
 
+// Map to store configurations by testId (for parallel test support)
+const configStore = new Map<string, TestConfiguration>();
+
+/**
+ * Generate a unique testId
+ */
+function generateTestId(): string {
+  return `test_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
 // ============================================================================
 // API Endpoints
 // ============================================================================
@@ -58,17 +68,19 @@ router.post('/configure', (req: Request, res: Response): void => {
     console.log('\n========== TEST CONFIGURE ==========');
     console.log('Received configuration:', JSON.stringify(config, null, 2));
 
-    // Merge with current config (partial updates allowed)
-    currentConfig = {
-      ...currentConfig,
+    // Generate testId if not provided
+    const testId = config.testId || generateTestId();
+
+    // Create new config with testId
+    const newConfig: TestConfiguration = {
+      ...getDefaultConfig(),
       ...config,
+      testId,
     };
 
     // Validate configuration
-    const validationErrors = validateConfig(currentConfig);
+    const validationErrors = validateConfig(newConfig);
 
-    // Apply to WebAuthn module
-    setTestConfig(currentConfig as TestConfig);
     if (validationErrors.length > 0) {
       console.error('Configuration validation errors:', validationErrors);
       res.status(400).json({
@@ -78,12 +90,24 @@ router.post('/configure', (req: Request, res: Response): void => {
       return;
     }
 
-    console.log('Active configuration:', JSON.stringify(currentConfig, null, 2));
+    // Store in configStore Map (for parallel test support)
+    configStore.set(testId, newConfig);
+    console.log(`📦 Config stored with testId: ${testId}`);
+    console.log(`📦 Total configs in store: ${configStore.size}`);
+
+    // Also update currentConfig for backwards compatibility
+    currentConfig = newConfig;
+
+    // Apply to WebAuthn module
+    setTestConfig(newConfig as TestConfig);
+
+    console.log('Active configuration:', JSON.stringify(newConfig, null, 2));
     console.log('========== TEST CONFIGURE END ==========\n');
 
     res.json({
       success: true,
-      config: currentConfig,
+      testId,
+      config: newConfig,
     });
   } catch (error) {
     console.error('Error configuring test:', error);
@@ -234,16 +258,57 @@ router.get('/config', (_req: Request, res: Response) => {
 });
 
 /**
+ * GET /api/test/config/:testId
+ * Get configuration for a specific testId (for parallel test support)
+ */
+router.get('/config/:testId', (req: Request, res: Response): void => {
+  try {
+    const { testId } = req.params;
+
+    console.log(`📦 Fetching config for testId: ${testId}`);
+
+    const config = configStore.get(testId);
+
+    if (!config) {
+      console.log(`❌ Config not found for testId: ${testId}`);
+      res.status(404).json({
+        success: false,
+        error: `Configuration not found for testId: ${testId}`,
+      });
+      return;
+    }
+
+    console.log(`✅ Config found for testId: ${testId}`);
+
+    res.json({
+      success: true,
+      testId,
+      config,
+    });
+  } catch (error) {
+    console.error('Error getting config by testId:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * POST /api/test/error
  * Record a client-side WebAuthn error for E2E testing
  * Used when navigator.credentials.create/get fails on the client
  */
 router.post('/error', (req: Request, res: Response): void => {
   try {
-    const { errorType, errorMessage, operation } = req.body;
+    const { errorType, errorMessage, operation, testId } = req.body;
+
+    // Use testId from request body if provided, otherwise fall back to currentConfig
+    const effectiveTestId = testId || currentConfig.testId;
+    const effectiveConfig = testId ? configStore.get(testId) || currentConfig : currentConfig;
 
     console.log('\n========== CLIENT ERROR RECEIVED ==========');
-    console.log('Test ID:', currentConfig.testId);
+    console.log('Test ID:', effectiveTestId);
     console.log('Error Type:', errorType);
     console.log('Error Message:', errorMessage);
     console.log('Operation:', operation || 'registration');
@@ -251,10 +316,10 @@ router.post('/error', (req: Request, res: Response): void => {
 
     // Store as a failed test result
     const result: any = {
-      testId: currentConfig.testId || 'unknown',
+      testId: effectiveTestId || 'unknown',
       timestamp: new Date(),
       operation: operation || 'registration',
-      parameters: currentConfig,
+      parameters: effectiveConfig,
       success: false,
       errorType: errorType || 'UnknownError',
       errorMessage: errorMessage || 'Unknown client error',
@@ -262,12 +327,12 @@ router.post('/error', (req: Request, res: Response): void => {
 
     testResultStore.addResult(result);
 
-    console.log(`🧪 Client error recorded for test: ${currentConfig.testId}`);
+    console.log(`🧪 Client error recorded for test: ${effectiveTestId}`);
 
     res.json({
       success: true,
       recorded: true,
-      testId: currentConfig.testId,
+      testId: effectiveTestId,
     });
   } catch (error) {
     console.error('Error recording client error:', error);
@@ -454,6 +519,14 @@ router.get('/wait-for-user', async (req: Request, res: Response): Promise<void> 
  */
 export function getCurrentTestConfig(): TestConfiguration {
   return { ...currentConfig };
+}
+
+/**
+ * Get configuration by testId
+ * Used for parallel test support
+ */
+export function getConfigByTestId(testId: string): TestConfiguration | undefined {
+  return configStore.get(testId);
 }
 
 /**

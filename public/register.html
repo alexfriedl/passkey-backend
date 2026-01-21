@@ -40,6 +40,15 @@
       }
 
       /**
+       * Gets testId from URL parameters (for E2E parallel test support)
+       * @returns {string|null} The testId or null if not present
+       */
+      function getTestId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('testId');
+      }
+
+      /**
        * Checks if request came from a mobile app
        * @returns {boolean}
        */
@@ -255,11 +264,17 @@
         // Schritt 1: Challenge abrufen
         let res;
         try {
+          // Check for testId (E2E parallel test support)
+          const testId = getTestId();
+          if (testId) {
+            logDebug(`🧪 TestId detected: ${testId}`);
+          }
+
           logDebug("Hole Challenge vom Server…");
           res = await fetch(`${API_URL}/register`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username }),
+            body: JSON.stringify({ username, testId }),
           });
         } catch (err) {
           logDebug("Fehler beim Abrufen der Challenge: " + err);
@@ -317,13 +332,15 @@
 
           // Report error to server for E2E testing (REG_P_038: excludeCredentials)
           try {
+            const testId = getTestId();
             await fetch('/api/test/error', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 errorType: err.name || 'UnknownError',
                 errorMessage: err.message || String(err),
-                operation: 'registration'
+                operation: 'registration',
+                testId
               })
             });
             logDebug("Error reported to test server: " + err.name);
@@ -415,11 +432,12 @@
         // Schritt 3: Registrierungsabschluss beim Server
         let verifyRes;
         try {
+          const testId = getTestId();
           logDebug("Sende Credential-Daten an den Server für den Abschluss...");
           verifyRes = await fetch(`${API_URL}/register/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ username, credential: credentialData }),
+            body: JSON.stringify({ username, credential: credentialData, testId }),
           });
         } catch (err) {
           logDebug("Fehler beim Senden der Daten: " + err);

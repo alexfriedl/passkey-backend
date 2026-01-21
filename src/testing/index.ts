@@ -21,7 +21,7 @@
  */
 
 export { default as testRouter } from './test-controller';
-export { getCurrentTestConfig, isTestModeActive } from './test-controller';
+export { getCurrentTestConfig, isTestModeActive, getConfigByTestId } from './test-controller';
 export {
   testResultStore,
   createRegistrationResult,
