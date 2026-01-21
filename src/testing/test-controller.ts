@@ -261,6 +261,44 @@ router.get('/config', (_req: Request, res: Response) => {
 });
 
 /**
+ * DELETE /api/test/config/:testId
+ * Delete configuration for a specific testId
+ */
+router.delete('/config/:testId', (req: Request, res: Response): void => {
+  try {
+    const { testId } = req.params;
+
+    console.log(`🗑️ Deleting config for testId: ${testId}`);
+
+    const existed = configStore.has(testId);
+    configStore.delete(testId);
+
+    if (existed) {
+      console.log(`✅ Config deleted for testId: ${testId}`);
+      res.json({
+        success: true,
+        deleted: true,
+        testId,
+      });
+    } else {
+      console.log(`⚠️ Config not found for testId: ${testId}`);
+      res.json({
+        success: true,
+        deleted: false,
+        testId,
+        message: 'Config not found',
+      });
+    }
+  } catch (error) {
+    console.error('Error deleting config:', error);
+    res.status(500).json({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * GET /api/test/config/:testId
  * Get configuration for a specific testId (for parallel test support)
  */
