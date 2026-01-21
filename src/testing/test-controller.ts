@@ -156,10 +156,34 @@ router.post('/reset', (_req: Request, res: Response) => {
 
 /**
  * GET /api/test/results
- * Get the last operation result with full details
+ * Get test results. Optional ?testId=xxx to get result for specific test.
  */
-router.get('/results', (_req: Request, res: Response): void => {
+router.get('/results', (req: Request, res: Response): void => {
   try {
+    const testId = req.query.testId as string | undefined;
+
+    if (testId) {
+      // Get result for specific testId
+      const results = testResultStore.getResultsByTestId(testId);
+
+      if (results.length === 0) {
+        res.status(404).json({
+          success: false,
+          error: `No results found for testId: ${testId}`,
+        });
+        return;
+      }
+
+      // Return the most recent result for this testId
+      res.json({
+        success: true,
+        testId,
+        result: results[results.length - 1],
+      });
+      return;
+    }
+
+    // No testId - return last result (backwards compatible)
     const lastResult = testResultStore.getLastResult();
 
     if (!lastResult) {
