@@ -128,6 +128,15 @@
       }
 
       /**
+       * Gets testId from URL parameters for E2E testing
+       * @returns {string|null} The testId or null if not present
+       */
+      function getTestId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('testId');
+      }
+
+      /**
        * Gets callback scheme from URL parameters
        * @returns {string} The callback scheme (default: 'passkeyguard')
        */
@@ -212,18 +221,22 @@
 
       async function discoverableLogin() {
         const API_URL = "/api";
+        const testId = getTestId();
 
         try {
           updateStatus('Starte Discoverable Login...', 'info');
           logDebug('=== DISCOVERABLE LOGIN START ===');
           logDebug('Kein Username erforderlich - iOS zeigt alle Passkeys');
+          if (testId) {
+            logDebug(`TestId: ${testId}`);
+          }
 
           // Schritt 1: Challenge vom Server holen (OHNE Username!)
           logDebug('Hole Challenge von /api/login/discoverable...');
           const res = await fetch(`${API_URL}/login/discoverable`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({}) // Kein Username!
+            body: JSON.stringify({ testId }) // testId für E2E Testing
           });
 
           const options = await res.json();
@@ -295,7 +308,8 @@
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               assertion: credentialData,
-              sessionId: sessionId // Fuer Challenge-Lookup, User wird via credentialId identifiziert
+              sessionId: sessionId, // Fuer Challenge-Lookup, User wird via credentialId identifiziert
+              testId // testId für E2E Testing
             })
           });
 

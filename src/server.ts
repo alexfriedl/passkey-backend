@@ -701,9 +701,14 @@ app.post("/api/login", async (req: any, res: any) => {
  */
 app.post("/api/login/discoverable", async (req: any, res: any) => {
   try {
+    const { testId } = req.body;
     console.log("Discoverable Login angefordert (kein Username)");
+    if (testId) {
+      console.log(`TestId: ${testId}`);
+    }
     const options = await generateDiscoverableAuthenticationOptions();
-    res.json(options);
+    // Include testId in response so it can be passed to verify
+    res.json({ ...options, testId });
   } catch (error) {
     console.error("Fehler beim Erstellen der Discoverable Login-Challenge:", error);
     res
@@ -718,7 +723,7 @@ app.post("/api/login/discoverable", async (req: any, res: any) => {
  */
 app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
   try {
-    const { assertion, sessionId } = req.body;
+    const { assertion, sessionId, testId } = req.body;
     if (!assertion || !sessionId) {
       return res
         .status(400)
@@ -726,24 +731,30 @@ app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
     }
 
     console.log("Discoverable Login Verify mit sessionId:", sessionId);
+    if (testId) {
+      console.log(`TestId: ${testId}`);
+    }
 
     // Convert base64 strings back to ArrayBuffers for fido2-lib
     const convertedAssertion = convertAssertionToArrayBuffers(assertion);
 
     const result = await verifyDiscoverableAuthentication(convertedAssertion, sessionId);
 
-    // Test Result speichern - immer wenn eine testConfig vorhanden ist oder isTestModeActive
-    // Dies stellt sicher, dass Ergebnisse auch gespeichert werden wenn ein Reset während der Auth passiert
-    const testConfig = getCurrentTestConfig();
-    if (isTestModeActive() || testConfig.testId) {
+    // Test Result speichern - prioritize testId from request, fallback to global config
+    const globalTestConfig = getCurrentTestConfig();
+    const effectiveTestId = testId || globalTestConfig.testId;
+
+    if (effectiveTestId) {
+      // Get config by testId if available, otherwise use global config
+      const testConfig = testId ? (getConfigByTestId(testId) || globalTestConfig) : globalTestConfig;
       const testResult = createAuthenticationResult(
-        testConfig.testId || 'discoverable_auth',
+        effectiveTestId,
         testConfig,
         true,
         { rawRequest: req.body }
       );
       testResultStore.addResult(testResult);
-      console.log("🧪 Discoverable auth test result stored for:", testConfig.testId || 'discoverable_auth');
+      console.log("🧪 Discoverable auth test result stored for:", effectiveTestId);
     }
 
     res.json({ success: true, username: result.username });
