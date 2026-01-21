@@ -718,17 +718,18 @@ app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
 
     const result = await verifyDiscoverableAuthentication(convertedAssertion, sessionId);
 
-    // Test Result speichern wenn im Test-Modus
-    if (isTestModeActive()) {
-      const testConfig = getCurrentTestConfig();
+    // Test Result speichern - immer wenn eine testConfig vorhanden ist oder isTestModeActive
+    // Dies stellt sicher, dass Ergebnisse auch gespeichert werden wenn ein Reset während der Auth passiert
+    const testConfig = getCurrentTestConfig();
+    if (isTestModeActive() || testConfig.testId) {
       const testResult = createAuthenticationResult(
-        testConfig.testId || 'unknown',
+        testConfig.testId || 'discoverable_auth',
         testConfig,
         true,
         { rawRequest: req.body }
       );
       testResultStore.addResult(testResult);
-      console.log("🧪 Discoverable auth test result stored for:", testConfig.testId);
+      console.log("🧪 Discoverable auth test result stored for:", testConfig.testId || 'discoverable_auth');
     }
 
     res.json({ success: true, username: result.username });
