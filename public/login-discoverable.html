@@ -340,9 +340,9 @@
        * Opens this page via PasskeyGuard deeplink flow
        */
       function openViaDeeplink() {
-        const currentUrl = window.location.origin + window.location.pathname;
-        const returnUrl = window.location.href;
-        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(currentUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
+        // Use full URL including query parameters (e.g., testId for E2E testing)
+        const currentUrl = window.location.href;
+        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(currentUrl)}`;
 
         logDebug(`Opening via deeplink: ${deeplink}`);
         window.location.href = deeplink;
