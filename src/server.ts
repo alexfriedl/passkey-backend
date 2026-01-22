@@ -745,13 +745,22 @@ app.post("/api/login/discoverable/verify", async (req: any, res: any) => {
     const effectiveTestId = testId || globalTestConfig.testId;
 
     if (effectiveTestId) {
+      // Extract authenticatorData from the assertion for test analysis
+      let authenticatorDataBuffer: Buffer | undefined;
+      if (convertedAssertion.response?.authenticatorData) {
+        authenticatorDataBuffer = Buffer.from(convertedAssertion.response.authenticatorData);
+      }
+
       // Get config by testId if available, otherwise use global config
       const testConfig = testId ? (getConfigByTestId(testId) || globalTestConfig) : globalTestConfig;
       const testResult = createAuthenticationResult(
         effectiveTestId,
         testConfig,
         true,
-        { rawRequest: req.body }
+        {
+          authenticatorData: authenticatorDataBuffer,
+          rawRequest: req.body
+        }
       );
       testResultStore.addResult(testResult);
       console.log("🧪 Discoverable auth test result stored for:", effectiveTestId);
