@@ -342,7 +342,9 @@
       function openViaDeeplink() {
         // Use full URL including query parameters (e.g., testId for E2E testing)
         const currentUrl = window.location.href;
-        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(currentUrl)}&returnURL=${encodeURIComponent(currentUrl)}`;
+        // returnURL should be success page, not login page (prevents reload loop after completion)
+        const successUrl = window.location.origin + '/success.html';
+        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(currentUrl)}&returnURL=${encodeURIComponent(successUrl)}`;
 
         logDebug(`Opening via deeplink: ${deeplink}`);
         window.location.href = deeplink;
