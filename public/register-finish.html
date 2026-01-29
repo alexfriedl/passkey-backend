@@ -1,0 +1,552 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Passkey Registrierung (Finish-Test)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+      }
+      #debugLog {
+        border: 1px solid #ccc;
+        padding: 0.5em;
+        background: #f7f7f7;
+        white-space: pre-wrap;
+        margin-top: 1em;
+        max-height: 300px;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Passkey Registrierung</h1>
+    <input type="text" id="username" placeholder="Benutzername" />
+    <button onclick="register()">Registrieren</button>
+    <pre id="status"></pre>
+    <div id="debugLog"></div>
+
+    <script>
+      // Store DCAppAttest data when received from iOS
+      let pendingDCAppAttestData = null;
+
+      /**
+       * Gets callback scheme from URL parameters
+       * @returns {string} The callback scheme (default: 'passkeyguard')
+       */
+      function getCallbackScheme() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('callbackScheme') || 'passkeyguard';
+      }
+
+      /**
+       * Gets testId from URL parameters (for E2E parallel test support)
+       * @returns {string|null} The testId or null if not present
+       */
+      function getTestId() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('testId');
+      }
+
+      /**
+       * Checks if request came from a mobile app
+       * @returns {boolean}
+       */
+      function isFromMobileApp() {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get('originApp') !== null;
+      }
+
+      /**
+       * Navigates back to the calling app via deeplink
+       * @param {'success' | 'error'} status - The completion status
+       * @param {string | null} username - The username (optional)
+       * @param {string | null} token - The token (optional)
+       * @param {string | null} errorMsg - Error message for error status (optional)
+       * @returns {boolean} - Whether navigation was triggered
+       */
+      function navigateBackToApp(status, username = null, token = null, errorMsg = null) {
+        if (!isFromMobileApp()) {
+          logDebug('Not from mobile app - skipping deeplink callback');
+          return false;
+        }
+
+        const scheme = getCallbackScheme();
+
+        // Bei Success: passkeyguard://finish aufrufen (zeigt Banner in App)
+        // Die Seite bleibt im aktuellen State - iOS fängt den URL-Scheme ab
+        if (status === 'success') {
+          const deeplink = `${scheme}://finish`;
+          logDebug(`Triggering finish callback: ${deeplink}`);
+          window.location.href = deeplink;
+          return true;
+        }
+
+        // Bei Error: wie bisher mit webauthn-completion
+        const params = new URLSearchParams();
+        params.set('status', 'error');
+        params.set('error', errorMsg || 'Unknown error');
+        const deeplink = `${scheme}://webauthn-completion?${params.toString()}`;
+        logDebug(`Navigating back to app with error: ${deeplink}`);
+        window.location.href = deeplink;
+        return true;
+      }
+      
+      // Listen for DCAppAttest data from iOS app
+      window.addEventListener('message', function(event) {
+        logDebug('Received message event: ' + JSON.stringify(event.data));
+        
+        if (event.data && event.data.type === 'dcAppAttestData') {
+          pendingDCAppAttestData = event.data.dcAppAttest;
+          logDebug('Stored DCAppAttest data from iOS app');
+          logDebug(JSON.stringify(pendingDCAppAttestData, null, 2));
+        }
+      });
+      
+      // Auto-start registration if opened from app
+      window.addEventListener('DOMContentLoaded', function() {
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        // Check if we have credential data from PasskeyGuard
+        if (urlParams.get('credential') && urlParams.get('source') === 'passkeyguard') {
+          logDebug('📱 Received credential data from PasskeyGuard!');
+          handlePasskeyGuardCredential(urlParams.get('credential'));
+          return;
+        }
+        
+        if (urlParams.get('hw') === 'true' && urlParams.get('username')) {
+          // Auto-start registration when opened from PasskeyGuard app
+          setTimeout(() => {
+            register();
+          }, 1000);
+        }
+      });
+      
+      // Handle credential data from PasskeyGuard
+      async function handlePasskeyGuardCredential(base64Credential) {
+        try {
+          logDebug('🔐 Processing PasskeyGuard credential...');
+          
+          // Decode base64 credential
+          const credentialJson = atob(decodeURIComponent(base64Credential));
+          const credentialData = JSON.parse(credentialJson);
+          
+          logDebug('📦 Credential data received:');
+          logDebug(JSON.stringify(credentialData, null, 2));
+          
+          const { credentialId, attestationObject, clientDataJSON, username } = credentialData;
+          
+          // Update UI
+          document.getElementById('username').value = username;
+          document.getElementById('status').textContent = 'PasskeyGuard-Daten empfangen, sende an Server...';
+          
+          // Prepare credential for backend
+          const credential = {
+            id: credentialId,
+            rawId: credentialId, // Extension sends UUID as string
+            response: {
+              attestationObject: attestationObject,
+              clientDataJSON: clientDataJSON
+            },
+            type: 'public-key'
+          };
+          
+          // Send to backend
+          const API_URL = "/api";
+          logDebug('📤 Sending credential to backend /api/register/verify');
+          
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+              username: username, 
+              credential: credential,
+              platform: 'ios-extension-redirect'
+            })
+          });
+          
+          const verifyResult = await verifyRes.json();
+          logDebug('📥 Backend response:');
+          logDebug(JSON.stringify(verifyResult, null, 2));
+          
+          if (verifyResult.success) {
+            document.getElementById('status').textContent = '✅ Registrierung erfolgreich!';
+            logDebug('🎉 Registration successful via PasskeyGuard redirect!');
+            
+            // Optional: Redirect or show success
+            setTimeout(() => {
+              window.location.href = '/success.html';
+            }, 2000);
+          } else {
+            document.getElementById('status').textContent = '❌ Registrierung fehlgeschlagen: ' + (verifyResult.error || 'Unbekannter Fehler');
+            logDebug('❌ Registration failed: ' + (verifyResult.error || 'Unknown error'));
+          }
+          
+        } catch (error) {
+          logDebug('❌ Error processing PasskeyGuard credential: ' + error.message);
+          document.getElementById('status').textContent = '❌ Fehler: ' + error.message;
+        }
+      }
+
+      // Hilfsfunktionen zur Umwandlung
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      // Debugging: Funktion, die Nachrichten sowohl in der Konsole als auch im Markup ausgibt
+      function logDebug(message) {
+        console.log(message);
+        const debugLog = document.getElementById("debugLog");
+        debugLog.textContent += message + "\n";
+      }
+
+      // Check for PasskeyGuard hardware-bound flag in URL fragment
+      let isHardwareBoundAvailable = false;
+      
+      // Parse hardware-bound flag from URL fragment
+      function checkHardwareBoundFlag() {
+        const fragment = window.location.hash.substring(1); // Remove #
+        if (fragment.includes('hwbound=true')) {
+          isHardwareBoundAvailable = true;
+          logDebug('PasskeyGuard hardware-bound mode detected from URL fragment');
+          return true;
+        }
+        return false;
+      }
+      
+      // Check on page load
+      checkHardwareBoundFlag();
+
+      async function register() {
+        const API_URL = "/api"; // Use relative path for local testing
+        let username = document.getElementById("username").value;
+        
+        // Check URL parameters for username and hardware-bound flag
+        const urlParams = new URLSearchParams(window.location.search);
+        if (urlParams.get('username')) {
+          username = urlParams.get('username');
+          document.getElementById("username").value = username;
+        }
+        
+        const isHardwareBound = urlParams.get('hw') === 'true';
+        
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+
+        // Check for PasskeyGuard hardware-bound mode
+        if (isHardwareBound && isHardwareBoundAvailable) {
+          logDebug(`PasskeyGuard hardware-bound mode available for: ${username}`);
+          return useHardwareBoundPasskey(username);
+        }
+
+        document.getElementById("status").textContent =
+          "Registrierung startet…";
+        logDebug(`Registrierung gestartet für: ${username} (Hardware-bound: ${isHardwareBound})`);
+
+        // Schritt 1: Challenge abrufen
+        let res;
+        try {
+          // Check for testId (E2E parallel test support)
+          const testId = getTestId();
+          if (testId) {
+            logDebug(`🧪 TestId detected: ${testId}`);
+          }
+
+          logDebug("Hole Challenge vom Server…");
+          res = await fetch(`${API_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, testId }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Abrufen der Challenge: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Abrufen der Challenge: " + err;
+          return;
+        }
+
+        let options;
+        try {
+          options = await res.json();
+          logDebug("Empfangene Optionen: " + JSON.stringify(options, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Optionen: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Optionen: " + err;
+          return;
+        }
+
+        // Sicherstellen, dass Challenge und user.id als ArrayBuffer vorliegen
+        if (typeof options.challenge === "string") {
+          logDebug("Wandle challenge von Base64 zu ArrayBuffer um.");
+          options.challenge = base64ToArrayBuffer(options.challenge);
+        }
+        if (typeof options.user.id === "string") {
+          logDebug("Wandle user.id von Base64 zu ArrayBuffer um.");
+          options.user.id = base64ToArrayBuffer(options.user.id);
+        }
+
+        // Convert excludeCredentials[].id from Base64 to ArrayBuffer
+        if (options.excludeCredentials && Array.isArray(options.excludeCredentials)) {
+          logDebug(`Wandle ${options.excludeCredentials.length} excludeCredentials.id von Base64 zu ArrayBuffer um.`);
+          options.excludeCredentials = options.excludeCredentials.map(cred => ({
+            ...cred,
+            id: typeof cred.id === "string" ? base64ToArrayBuffer(cred.id) : cred.id
+          }));
+        }
+
+        // Schritt 2: Passkey-Erstellung via WebAuthn
+        let credential;
+        try {
+          logDebug(
+            "Starte WebAuthn-Registrierung über navigator.credentials.create..."
+          );
+          credential = await navigator.credentials.create({
+            publicKey: options,
+          });
+          logDebug(
+            "Credential erfolgreich erstellt: " + JSON.stringify(credential)
+          );
+        } catch (err) {
+          logDebug("Fehler bei credential.create: " + err);
+          document.getElementById("status").textContent =
+            "Fehler bei credential.create: " + err;
+
+          // Report error to server for E2E testing (REG_P_038: excludeCredentials)
+          try {
+            const testId = getTestId();
+            await fetch('/api/test/error', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                errorType: err.name || 'UnknownError',
+                errorMessage: err.message || String(err),
+                operation: 'registration',
+                testId
+              })
+            });
+            logDebug("Error reported to test server: " + err.name);
+          } catch (reportErr) {
+            logDebug("Failed to report error to test server: " + reportErr);
+          }
+          return;
+        }
+
+        // For iOS PasskeyGuard: Wait for DCAppAttest data if credential is from iOS
+        let modifiedClientDataJSON = null;
+        const isPasskeyGuardIOS = navigator.userAgent.includes('PasskeyGuard') || urlParams.get('hw') === 'true';
+        
+        if (isPasskeyGuardIOS) {
+          logDebug("PasskeyGuard iOS detected - waiting for DCAppAttest data...");
+          
+          // Create a promise to wait for DCAppAttest data
+          const waitForDCAppAttest = new Promise((resolve) => {
+            // Set a timeout in case data doesn't arrive
+            const timeout = setTimeout(() => {
+              logDebug("DCAppAttest timeout - proceeding without it");
+              resolve(null);
+            }, 3000); // Wait max 3 seconds
+            
+            // Listen for DCAppAttest data
+            const handleMessage = (event) => {
+              if (event.data && event.data.type === 'dcAppAttestData') {
+                clearTimeout(timeout);
+                window.removeEventListener('message', handleMessage);
+                logDebug("DCAppAttest data received!");
+                resolve(event.data.dcAppAttest);
+              }
+            };
+            
+            window.addEventListener('message', handleMessage);
+            
+            // Also check if data is already available
+            if (pendingDCAppAttestData) {
+              clearTimeout(timeout);
+              window.removeEventListener('message', handleMessage);
+              resolve(pendingDCAppAttestData);
+            }
+          });
+          
+          // Wait for DCAppAttest data
+          const dcAppAttestInfo = await waitForDCAppAttest;
+          
+          if (dcAppAttestInfo) {
+            logDebug("Processing DCAppAttest injection...");
+            
+            // Decode the original clientDataJSON
+            const originalClientData = JSON.parse(
+              new TextDecoder().decode(
+                base64ToArrayBuffer(arrayBufferToBase64(credential.response.clientDataJSON))
+              )
+            );
+            
+            // Inject DCAppAttest into extensions
+            originalClientData.extensions = originalClientData.extensions || {};
+            originalClientData.extensions.dcAppAttest = dcAppAttestInfo;
+            
+            // Re-encode the modified clientDataJSON
+            modifiedClientDataJSON = btoa(JSON.stringify(originalClientData));
+            
+            logDebug("Injected DCAppAttest into clientDataJSON:");
+            logDebug(JSON.stringify(originalClientData, null, 2));
+          }
+        }
+        
+        const credentialData = {
+          id: credential.id,
+          rawId: arrayBufferToBase64(credential.rawId),
+          response: {
+            attestationObject: arrayBufferToBase64(
+              credential.response.attestationObject
+            ),
+            clientDataJSON: modifiedClientDataJSON || arrayBufferToBase64(
+              credential.response.clientDataJSON
+            ),
+          },
+          type: credential.type,
+        };
+
+        logDebug(
+          "Credential-Daten formatiert: " +
+            JSON.stringify(credentialData, null, 2)
+        );
+
+        // Schritt 3: Registrierungsabschluss beim Server
+        let verifyRes;
+        try {
+          const testId = getTestId();
+          logDebug("Sende Credential-Daten an den Server für den Abschluss...");
+          verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, credential: credentialData, testId }),
+          });
+        } catch (err) {
+          logDebug("Fehler beim Senden der Daten: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Senden der Daten: " + err;
+          return;
+        }
+
+        let verifyResult;
+        try {
+          verifyResult = await verifyRes.json();
+          logDebug("Serverantwort: " + JSON.stringify(verifyResult, null, 2));
+        } catch (err) {
+          logDebug("Fehler beim Parsen der Serverantwort: " + err);
+          document.getElementById("status").textContent =
+            "Fehler beim Parsen der Serverantwort: " + err;
+          return;
+        }
+
+        // Nach erfolgreicher Registrierung
+        if (verifyResult.success) {
+          document.getElementById("status").textContent =
+            "Registrierung erfolgreich!";
+          logDebug("Registrierung erfolgreich!");
+
+          // Navigate back to PasskeyGuard app if request came from there
+          const token = verifyResult.token || "dummyToken";
+          if (!navigateBackToApp('success', username, token)) {
+            // Not from app - stay on page or redirect to success page
+            logDebug("Staying on page (not from PasskeyGuard app)");
+          }
+        } else {
+          const errorMsg = verifyResult.error || "Unbekannter Fehler";
+          document.getElementById("status").textContent =
+            "Registrierung fehlgeschlagen: " + errorMsg;
+          logDebug("Registrierung fehlgeschlagen: " + errorMsg);
+
+          // Navigate back to app with error if request came from there
+          navigateBackToApp('error', username, null, errorMsg);
+        }
+      }
+
+      // Handler for hardware-bound passkey - requests data from backend
+      async function useHardwareBoundPasskey(username) {
+        const API_URL = "/api";
+        
+        try {
+          document.getElementById("status").textContent = "Hole Hardware-bound Passkey-Daten...";
+          logDebug("Requesting hardware-bound passkey data from backend");
+          
+          // Request hardware-bound data from backend
+          const dataRes = await fetch(`${API_URL}/passkey/hardware-bound`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+          
+          if (!dataRes.ok) {
+            throw new Error("Failed to get hardware-bound data");
+          }
+          
+          const passkeyData = await dataRes.json();
+          logDebug(`Received hardware-bound passkey data: ${JSON.stringify(passkeyData)}`);
+          
+          if (!passkeyData.success || !passkeyData.credential) {
+            throw new Error("No hardware-bound passkey data available");
+          }
+          
+          document.getElementById("status").textContent = "Sende Hardware-bound Passkey an Server...";
+          
+          // Send the hardware-bound credential to verification endpoint
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              username, 
+              credential: passkeyData.credential,
+              hardwareBound: true
+            }),
+          });
+          
+          const verifyResult = await verifyRes.json();
+          logDebug("Hardware-bound registration server response:");
+          logDebug(JSON.stringify(verifyResult, null, 2));
+          
+          if (verifyResult.success) {
+            document.getElementById("status").textContent = "Hardware-bound Registrierung erfolgreich!";
+            logDebug("Hardware-bound registration completed successfully");
+
+            // Navigate back to PasskeyGuard app if request came from there
+            const token = verifyResult.token || "hardwareBoundToken";
+            if (!navigateBackToApp('success', username, token)) {
+              logDebug("Staying on page (not from PasskeyGuard app)");
+            }
+          } else {
+            const errorMsg = verifyResult.error || "Unbekannter Fehler";
+            document.getElementById("status").textContent = "Hardware-bound Registrierung fehlgeschlagen: " + errorMsg;
+            logDebug("Hardware-bound registration failed: " + errorMsg);
+
+            // Navigate back to app with error if request came from there
+            navigateBackToApp('error', username, null, errorMsg);
+          }
+          
+        } catch (error) {
+          logDebug("ERROR in hardware-bound registration: " + error.message);
+          document.getElementById("status").textContent = "Fehler bei Hardware-bound Registrierung: " + error.message;
+        }
+      }
+    </script>
+  </body>
+</html>
