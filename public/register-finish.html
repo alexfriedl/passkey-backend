@@ -21,12 +21,21 @@
   </head>
   <body>
     <h1>Passkey Registrierung</h1>
+    <!-- Session token for E2E state preservation testing (FINISH_P_004) -->
+    <div id="session-token" style="font-size: 12px; color: #666; margin: 10px 0;">
+      Session: <span id="token-value"></span>
+    </div>
     <input type="text" id="username" placeholder="Benutzername" />
     <button onclick="register()">Registrieren</button>
     <pre id="status"></pre>
     <div id="debugLog"></div>
 
     <script>
+      // Generate unique session token on page load for E2E state preservation testing
+      // A reload would generate a new token, proving the page was reloaded
+      const sessionToken = Math.random().toString(36).substring(2, 10);
+      document.getElementById('token-value').textContent = sessionToken;
+
       // Store DCAppAttest data when received from iOS
       let pendingDCAppAttestData = null;
 
