@@ -23,6 +23,11 @@
     <h1>Android Passkey</h1>
 
     <div style="margin: 20px 0;">
+      <h3>Ziel-URL</h3>
+      <input type="url" id="target-url" placeholder="https://example.com" style="width: 300px;" />
+    </div>
+
+    <div style="margin: 20px 0;">
       <h3>Registrierung</h3>
       <input type="text" id="username" placeholder="Benutzername" />
       <button onclick="register()">Registrieren</button>
@@ -110,11 +115,16 @@
           return;
         }
 
+        const targetUrl = document.getElementById("target-url").value;
+
         const currentOrigin = window.location.origin;
         const registerUrl = `${currentOrigin}/register-android.html?username=${encodeURIComponent(username)}&android=true`;
 
         // Deeplink zur PasskeyGuard Android App
-        const deeplink = `passkeyguard://register?origin=${encodeURIComponent(registerUrl)}`;
+        let deeplink = `passkeyguard://register?origin=${encodeURIComponent(registerUrl)}`;
+        if (targetUrl) {
+          deeplink += `&url=${encodeURIComponent(targetUrl)}`;
+        }
 
         logDebug("Öffne App für Registrierung: " + deeplink);
         document.getElementById("status").textContent = "Öffne PasskeyGuard App...";
@@ -123,6 +133,8 @@
 
       function openAppForLogin() {
         const username = document.getElementById("login-username").value;
+        const targetUrl = document.getElementById("target-url").value;
+
         const currentOrigin = window.location.origin;
         let loginUrl = `${currentOrigin}/register-android.html?android=true&mode=login`;
 
@@ -131,7 +143,10 @@
         }
 
         // Deeplink zur PasskeyGuard Android App für Login
-        const deeplink = `passkeyguard://login?origin=${encodeURIComponent(loginUrl)}`;
+        let deeplink = `passkeyguard://login?origin=${encodeURIComponent(loginUrl)}`;
+        if (targetUrl) {
+          deeplink += `&url=${encodeURIComponent(targetUrl)}`;
+        }
 
         logDebug("Öffne App für Login: " + deeplink);
         document.getElementById("status").textContent = "Öffne PasskeyGuard App...";
