@@ -24,6 +24,10 @@ export interface TestConfiguration {
   // Test metadata
   testId?: string;
   description?: string;
+
+  // Optional rpId override for SEC_RPID_* tests
+  // When undefined, the global rpId (from process.env.RPID) is used
+  rpId?: string;
 }
 
 export interface ExcludeCredentialConfig {

@@ -15,6 +15,9 @@ export interface TestConfig {
   excludeCredentials: Array<{ id: string; transports?: string[] }>;
   allowCredentials: Array<{ id: string; transports?: string[] }>;
   testId?: string;
+  // Optional rpId override for SEC_RPID_* tests
+  // When undefined, the global rpId is used (no change to existing behavior)
+  rpId?: string;
 }
 
 /**
@@ -115,7 +118,7 @@ export function applyTestConfigToRegistrationOptions(
   options: any,
   config: TestConfig
 ): any {
-  return {
+  const result: any = {
     ...options,
     authenticatorSelection: {
       ...options.authenticatorSelection,
@@ -135,6 +138,18 @@ export function applyTestConfigToRegistrationOptions(
       transports: cred.transports || ["internal"],
     })),
   };
+
+  // SEC_RPID_* tests: Override rpId only when explicitly set in config
+  // When undefined, the global rpId (from process.env.RPID) is preserved
+  if (config.rpId !== undefined) {
+    result.rp = {
+      ...options.rp,
+      id: config.rpId
+    };
+    console.log("🧪 SEC_RPID: Applying custom rpId:", config.rpId);
+  }
+
+  return result;
 }
 
 /**
@@ -153,9 +168,18 @@ export function applyTestConfigToAuthenticationOptions(
       }))
     : []; // Empty = discoverable flow
 
-  return {
+  const result: any = {
     ...options,
     userVerification: config.userVerification,
     allowCredentials: allowCredentials,
   };
+
+  // SEC_RPID_* tests: Override rpId only when explicitly set in config
+  // When undefined, the global rpId is preserved
+  if (config.rpId !== undefined) {
+    result.rpId = config.rpId;
+    console.log("🧪 SEC_RPID: Applying custom rpId for auth:", config.rpId);
+  }
+
+  return result;
 }
