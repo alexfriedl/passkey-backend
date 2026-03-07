@@ -10,6 +10,7 @@ import { createHash } from "crypto";
 import cbor from "cbor";
 import User, { IUser } from "./models/User";
 import { getCurrentTestConfig, isTestModeActive } from "./testing/test-controller";
+import { createFido2WithConfig, getTestConfig } from "./testing/test-webauthn-config";
 
 function arrayBufferToBase64(buffer: ArrayBuffer) {
   return Buffer.from(new Uint8Array(buffer)).toString('base64');
@@ -337,10 +338,22 @@ export async function verifyRegistration(
   }
 
   try {
+    // Check if test config has custom rpId (for SEC_RPID_* tests)
+    const testConfig = getTestConfig();
+    const effectiveRpId = testConfig?.rpId || rpId;
+    const effectiveOrigin = process.env.ORIGIN || `https://${rpId}`;
+
+    // Use appropriate Fido2Lib instance based on rpId
+    let fido2Instance = fido2;
+    if (testConfig?.rpId && testConfig.rpId !== rpId) {
+      console.log(`🧪 Using test config rpId for verification: ${testConfig.rpId}`);
+      fido2Instance = createFido2WithConfig(testConfig.rpId, testConfig);
+    }
+
     // Verifikation mit (möglicherweise bereinigtem) attestationObject
-    const attestationResult = await fido2.attestationResult(credential, {
+    const attestationResult = await fido2Instance.attestationResult(credential, {
       challenge: challengeBase64,
-      origin: process.env.ORIGIN || `https://${rpId}`,
+      origin: effectiveOrigin,
       factor: "either",
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
