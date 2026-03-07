@@ -456,16 +456,23 @@ export async function generateAuthenticationOptions(
     ];
   }
 
+  // Check if test config has custom rpId (for SEC_RPID_* tests)
+  const effectiveRpId = isTestMode && testConfig.rpId ? testConfig.rpId : (process.env.RPID || "localhost");
+
   // Ergänze die Antwort um zusätzliche Felder, die der Client erwartet:
   const responseOptions = {
     ...options,
     challenge: challengeBase64,
     allowCredentials: allowCredentials,
     userVerification: isTestMode ? testConfig.userVerification : "preferred",
+    rpId: effectiveRpId,  // Use test config rpId if set
     rp: { name: "LocalKeyApp" },
     user: { id: username, name: username },
   };
   console.log("allowCredentials gesetzt:", responseOptions.allowCredentials);
+  if (isTestMode && testConfig.rpId) {
+    console.log(`🧪 Using test config rpId for auth options: ${effectiveRpId}`);
+  }
 
   console.log("Authentifizierungsoptionen:", responseOptions);
   return responseOptions as any;
@@ -493,13 +500,23 @@ export async function generateDiscoverableAuthenticationOptions(): Promise<Publi
   options.allowCredentials = [];
   console.log("allowCredentials: [] (Discoverable Flow)");
 
+  // Check if test config has custom rpId (for SEC_RPID_* tests)
+  const testConfig = getCurrentTestConfig();
+  const isTestMode = isTestModeActive();
+  const effectiveRpId = isTestMode && testConfig.rpId ? testConfig.rpId : (process.env.RPID || "localhost");
+
   const responseOptions = {
     ...options,
     challenge: challengeBase64,
     sessionId: sessionId, // Client muss diese ID bei verify mitsenden
+    rpId: effectiveRpId,  // Use test config rpId if set
     rp: { name: "LocalKeyApp" },
-    userVerification: "preferred",
+    userVerification: isTestMode ? testConfig.userVerification : "preferred",
   };
+
+  if (isTestMode && testConfig.rpId) {
+    console.log(`🧪 Using test config rpId for discoverable auth options: ${effectiveRpId}`);
+  }
 
   console.log("Discoverable Authentifizierungsoptionen:", responseOptions);
   return responseOptions as any;
