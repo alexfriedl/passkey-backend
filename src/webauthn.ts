@@ -357,10 +357,13 @@ export async function verifyRegistration(
     console.log(`🔍 DEBUG: effectiveRpId=${effectiveRpId}, effectiveOrigin=${effectiveOrigin}`);
 
     // Verifikation mit (möglicherweise bereinigtem) attestationObject
+    // IMPORTANT: Must pass rpId in expectations so fido2-lib uses it for rpIdHash validation
+    // instead of extracting hostname from origin
     const attestationResult = await fido2Instance.attestationResult(credential, {
       challenge: challengeBase64,
       origin: effectiveOrigin,
       factor: "either",
+      rpId: effectiveRpId,
     });
     console.log("✅ Registrierung erfolgreich:", attestationResult);
 
