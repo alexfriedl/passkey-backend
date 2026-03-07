@@ -341,9 +341,20 @@ export async function verifyRegistration(
     // Check if test config has custom rpId (for SEC_RPID_* tests)
     const testConfig = getTestConfig();
     const effectiveRpId = testConfig?.rpId || rpId;
-    // IMPORTANT: Origin must use the actual request origin (www.appsprint.de)
-    // but rpIdHash validation uses the requested rpId (appsprint.de)
-    const effectiveOrigin = process.env.ORIGIN || `https://${rpId}`;
+
+    // Extract actual origin from clientDataJSON (browser's origin)
+    // This is needed for multi-subdomain scenarios (e.g., test.www.appsprint.de)
+    let effectiveOrigin = process.env.ORIGIN || `https://${rpId}`;
+    try {
+      const clientDataBuffer = Buffer.from(credential.response.clientDataJSON, 'base64');
+      const clientData = JSON.parse(clientDataBuffer.toString());
+      if (clientData.origin) {
+        effectiveOrigin = clientData.origin;
+        console.log(`🔗 Using origin from clientData: ${effectiveOrigin}`);
+      }
+    } catch (e) {
+      console.log("🔍 DEBUG: Could not extract origin from clientData, using default");
+    }
 
     // Use appropriate Fido2Lib instance based on rpId
     let fido2Instance = fido2;
