@@ -563,22 +563,36 @@ export async function verifyDiscoverableAuthentication(
   }
 
   try {
+    // Check if test config has custom rpId (for SEC_RPID_* tests)
+    const testConfig = getTestConfig();
+    const effectiveRpId = testConfig?.rpId || rpId;
+    const effectiveOrigin = `https://${rpId}`;
+
+    // Use appropriate Fido2Lib instance based on rpId
+    let fido2Instance = fido2;
+    if (testConfig?.rpId && testConfig.rpId !== rpId) {
+      console.log(`🧪 Using test config rpId for discoverable auth: ${testConfig.rpId}`);
+      fido2Instance = createFido2WithConfig(testConfig.rpId, testConfig);
+    }
+
     console.log('fido2.assertionResult (Discoverable) called with:', {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: effectiveOrigin,
+      rpId: effectiveRpId,
       factor: "either",
       publicKey: userPublicKey?.substring(0, 50) + '...',
       prevCounter: user.counter,
       userHandle: user.userHandle,
     });
 
-    const assertionResult = await fido2.assertionResult(assertion, {
+    const assertionResult = await fido2Instance.assertionResult(assertion, {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: effectiveOrigin,
       factor: "either",
       publicKey: userPublicKey,
       prevCounter: user.counter,
       userHandle: user.userHandle ?? null,
+      rpId: effectiveRpId,
     });
 
     // Aktualisiere den Counter in der DB
@@ -616,30 +630,44 @@ export async function verifyAuthentication(
   if (!user) {
     throw new Error("User not found.");
   }
-  
+
   // Use publicKey from database if not provided in request
   const userPublicKey = publicKey || user.publicKey;
   if (!userPublicKey) {
     throw new Error("PublicKey nicht gefunden.");
   }
-  
+
   try {
+    // Check if test config has custom rpId (for SEC_RPID_* tests)
+    const testConfig = getTestConfig();
+    const effectiveRpId = testConfig?.rpId || rpId;
+    const effectiveOrigin = `https://${rpId}`;
+
+    // Use appropriate Fido2Lib instance based on rpId
+    let fido2Instance = fido2;
+    if (testConfig?.rpId && testConfig.rpId !== rpId) {
+      console.log(`🧪 Using test config rpId for auth verification: ${testConfig.rpId}`);
+      fido2Instance = createFido2WithConfig(testConfig.rpId, testConfig);
+    }
+
     console.log('fido2.assertionResult called with:', {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: effectiveOrigin,
+      rpId: effectiveRpId,
       factor: "either",
       publicKey: userPublicKey?.substring(0, 50) + '...',
       prevCounter: user.counter,
       userHandle: user.userHandle ?? null,
     });
 
-    const assertionResult = await fido2.assertionResult(assertion, {
+    const assertionResult = await fido2Instance.assertionResult(assertion, {
       challenge: challengeBase64,
-      origin: `https://${rpId}`,
+      origin: effectiveOrigin,
       factor: "either",
       publicKey: userPublicKey,
       prevCounter: user.counter,
       userHandle: user.userHandle ?? null,
+      rpId: effectiveRpId,
     });
     // Aktualisiere den Counter in der DB mithilfe der update-Funktion
     await updateUserCounter(
