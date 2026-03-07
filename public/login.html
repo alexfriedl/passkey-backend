@@ -187,6 +187,25 @@
           console.error("❌ Fehler beim Login:", error);
           document.getElementById("status").textContent =
             "Fehler beim Login: " + error.message;
+
+          // Report error to server for E2E testing (SEC_RPID_021: Invalid RPID)
+          try {
+            const testId = new URLSearchParams(window.location.search).get('testId');
+            await fetch('/api/test/error', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                errorType: error.name || 'UnknownError',
+                errorMessage: error.message || String(error),
+                operation: 'authentication',
+                testId
+              })
+            });
+            console.log("📤 Error reported to test server:", error.name);
+          } catch (reportErr) {
+            console.log("⚠️ Failed to report error to test server:", reportErr);
+          }
+
           navigateBackToApp('error', null, error.message);
         }
       }
