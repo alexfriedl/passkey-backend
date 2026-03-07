@@ -341,14 +341,20 @@ export async function verifyRegistration(
     // Check if test config has custom rpId (for SEC_RPID_* tests)
     const testConfig = getTestConfig();
     const effectiveRpId = testConfig?.rpId || rpId;
+    // IMPORTANT: Origin must use the actual request origin (www.appsprint.de)
+    // but rpIdHash validation uses the requested rpId (appsprint.de)
     const effectiveOrigin = process.env.ORIGIN || `https://${rpId}`;
 
     // Use appropriate Fido2Lib instance based on rpId
     let fido2Instance = fido2;
     if (testConfig?.rpId && testConfig.rpId !== rpId) {
       console.log(`🧪 Using test config rpId for verification: ${testConfig.rpId}`);
+      console.log(`🧪 Global rpId: ${rpId}, Test rpId: ${testConfig.rpId}`);
       fido2Instance = createFido2WithConfig(testConfig.rpId, testConfig);
+      console.log(`🧪 Created new Fido2Lib instance with rpId: ${testConfig.rpId}`);
     }
+
+    console.log(`🔍 DEBUG: effectiveRpId=${effectiveRpId}, effectiveOrigin=${effectiveOrigin}`);
 
     // Verifikation mit (möglicherweise bereinigtem) attestationObject
     const attestationResult = await fido2Instance.attestationResult(credential, {
