@@ -261,6 +261,7 @@ export function createRegistrationResult(
       id: options.credential.id,
       rawId: options.credential.rawId,
       type: options.credential.type || 'public-key',
+      algorithm: options.credential.algorithm,
     };
   }
 
