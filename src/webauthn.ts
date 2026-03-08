@@ -453,6 +453,22 @@ export async function generateAuthenticationOptions(
       id: cred.id,
       transports: cred.transports || ["internal"],
     }));
+  } else if (isTestMode && testConfig.useRegisteredCredential) {
+    // Test-Modus mit useRegisteredCredential: Verwende registrierte Credential des Users
+    console.log("Test-Modus (useRegisteredCredential=true): Verwende registrierte Credential des Users");
+    const credentialIdBase64 = user.credentialId;
+    console.log("credentialId (Base64URL):", credentialIdBase64);
+    allowCredentials = [
+      {
+        type: "public-key",
+        id: credentialIdBase64,
+        transports: ["internal"],
+      },
+    ];
+  } else if (isTestMode && testConfig.allowCredentials && testConfig.allowCredentials.length === 0) {
+    // Test-Modus mit leeren allowCredentials = Discoverable Flow
+    console.log("Test-Modus: allowCredentials=[] (Discoverable Flow)");
+    allowCredentials = [];
   } else {
     // Standard: Verwende registrierte Credential des Users
     console.log("Standard-Modus: Verwende registrierte Credential des Users");

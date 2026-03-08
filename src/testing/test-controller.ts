@@ -20,6 +20,8 @@ export interface TestConfiguration {
 
   // Authentication parameters
   allowCredentials: AllowCredentialConfig[];
+  // When true, use the registered credential from DB instead of allowCredentials array
+  useRegisteredCredential?: boolean;
 
   // Test metadata
   testId?: string;

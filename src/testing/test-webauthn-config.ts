@@ -14,6 +14,8 @@ export interface TestConfig {
   pubKeyCredParams: number[];
   excludeCredentials: Array<{ id: string; transports?: string[] }>;
   allowCredentials: Array<{ id: string; transports?: string[] }>;
+  // When true, use the registered credential from DB instead of allowCredentials array
+  useRegisteredCredential?: boolean;
   testId?: string;
   // Optional rpId override for SEC_RPID_* tests
   // When undefined, the global rpId is used (no change to existing behavior)
