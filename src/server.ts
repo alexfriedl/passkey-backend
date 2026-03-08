@@ -512,6 +512,25 @@ app.post("/api/register/verify", async (req: any, res: any) => {
         const rawAuthnrData = result.authnrData.get('rawAuthnrData');
         const authDataBuffer = rawAuthnrData ? Buffer.from(rawAuthnrData) : undefined;
 
+        // Extract algorithm from JWK (e.g., "ES256" -> -7)
+        const jwk = result.authnrData.get('credentialPublicKeyJwk');
+        let algorithm: number | undefined;
+        if (jwk && jwk.alg) {
+          // Convert JWK alg string to COSE algorithm number
+          const algMap: Record<string, number> = {
+            'ES256': -7,
+            'ES384': -35,
+            'ES512': -36,
+            'RS256': -257,
+            'RS384': -258,
+            'RS512': -259,
+            'PS256': -37,
+            'PS384': -38,
+            'PS512': -39,
+          };
+          algorithm = algMap[jwk.alg];
+        }
+
         const testResult = createRegistrationResult(
           activeTestConfig.testId || testId || 'unknown',
           activeTestConfig,
@@ -527,7 +546,8 @@ app.post("/api/register/verify", async (req: any, res: any) => {
             credential: {
               id: typeof credential.id === 'string' ? credential.id : Buffer.from(credential.id).toString('base64url'),
               rawId: typeof credential.rawId === 'string' ? credential.rawId : Buffer.from(credential.rawId).toString('base64url'),
-              type: credential.type || 'public-key'
+              type: credential.type || 'public-key',
+              algorithm: algorithm
             }
           }
         );
