@@ -4,10 +4,10 @@
       {
         "appIDs": ["9543Y8GMF6.com.merckgroup.passkeyguard.dev"],
         "components": [
-          { "/": "/register" },
-          { "/": "/register/*" },
-          { "/": "/login" },
-          { "/": "/login/*" }
+          { "/": "/register.html" },
+          { "/": "/register.html?*" },
+          { "/": "/login.html" },
+          { "/": "/login.html?*" }
         ]
       }
     ]
