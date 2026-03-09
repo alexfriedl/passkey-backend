@@ -55,6 +55,27 @@ app.get("/.well-known/apple-app-site-association", (req, res) => {
   );
 });
 
+// Universal Link routes - serve HTML files without .html extension
+// This allows /register to work in addition to /register.html
+app.get("/register", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/register.html"));
+});
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login.html"));
+});
+app.get("/login-discoverable", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login-discoverable.html"));
+});
+app.get("/login-non-discoverable", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/login-non-discoverable.html"));
+});
+app.get("/demo-rp", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/demo-rp.html"));
+});
+app.get("/fidodemo", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/fidodemo.html"));
+});
+
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Apple App Attest Router
