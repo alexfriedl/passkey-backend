@@ -4,16 +4,24 @@
       {
         "appIDs": ["9543Y8GMF6.com.merckgroup.passkeyguard.dev"],
         "components": [
+          { "/": "/register" },
+          { "/": "/register/*" },
           { "/": "/register.html" },
           { "/": "/register.html?*" },
+          { "/": "/login" },
+          { "/": "/login/*" },
           { "/": "/login.html" },
           { "/": "/login.html?*" },
+          { "/": "/login-discoverable" },
           { "/": "/login-discoverable.html" },
           { "/": "/login-discoverable.html?*" },
+          { "/": "/login-non-discoverable" },
           { "/": "/login-non-discoverable.html" },
           { "/": "/login-non-discoverable.html?*" },
+          { "/": "/demo-rp" },
           { "/": "/demo-rp.html" },
           { "/": "/demo-rp.html?*" },
+          { "/": "/fidodemo" },
           { "/": "/fidodemo.html" },
           { "/": "/fidodemo.html?*" }
         ]
