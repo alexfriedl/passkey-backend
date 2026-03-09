@@ -7,7 +7,15 @@
           { "/": "/register.html" },
           { "/": "/register.html?*" },
           { "/": "/login.html" },
-          { "/": "/login.html?*" }
+          { "/": "/login.html?*" },
+          { "/": "/login-discoverable.html" },
+          { "/": "/login-discoverable.html?*" },
+          { "/": "/login-non-discoverable.html" },
+          { "/": "/login-non-discoverable.html?*" },
+          { "/": "/demo-rp.html" },
+          { "/": "/demo-rp.html?*" },
+          { "/": "/fidodemo.html" },
+          { "/": "/fidodemo.html?*" }
         ]
       }
     ]
