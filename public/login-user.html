@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Passkey Login (Clean)</title>
+  <style>
+    body { font-family: -apple-system, sans-serif; padding: 20px; max-width: 400px; margin: 0 auto; }
+    input { width: 100%; padding: 12px; font-size: 16px; margin-bottom: 10px; border: 1px solid #ccc; border-radius: 8px; }
+    button { width: 100%; padding: 12px; font-size: 16px; background: #007AFF; color: white; border: none; border-radius: 8px; cursor: pointer; }
+    button:disabled { background: #ccc; }
+    #status { margin-top: 20px; padding: 10px; border-radius: 8px; }
+    .success { background: #d4edda; color: #155724; }
+    .error { background: #f8d7da; color: #721c24; }
+    #log { margin-top: 20px; font-size: 12px; background: #f5f5f5; padding: 10px; border-radius: 8px; white-space: pre-wrap; max-height: 200px; overflow: auto; }
+  </style>
+</head>
+<body>
+  <h2>Passkey Login</h2>
+  <input type="text" id="username" placeholder="Username eingeben" autocomplete="off" />
+  <button id="loginBtn" onclick="login()">Login</button>
+  <div id="status"></div>
+  <div id="log"></div>
+
+  <script>
+    function log(msg) {
+      console.log(msg);
+      document.getElementById('log').textContent += msg + '\n';
+    }
+
+    function showStatus(msg, isError) {
+      const el = document.getElementById('status');
+      el.textContent = msg;
+      el.className = isError ? 'error' : 'success';
+    }
+
+    function base64ToArrayBuffer(base64) {
+      const binary = atob(base64.replace(/-/g, '+').replace(/_/g, '/'));
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    function arrayBufferToBase64(buffer) {
+      let binary = '';
+      const bytes = new Uint8Array(buffer);
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function login() {
+      const username = document.getElementById('username').value.trim();
+      if (!username) {
+        alert('Bitte Username eingeben');
+        return;
+      }
+
+      document.getElementById('loginBtn').disabled = true;
+      document.getElementById('log').textContent = '';
+      log('Starte Login für: ' + username);
+
+      try {
+        // 1. Challenge holen
+        log('Hole Challenge vom Server...');
+        const optionsRes = await fetch('/api/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username })
+        });
+
+        const options = await optionsRes.json();
+
+        if (options.error) {
+          throw new Error(options.error);
+        }
+
+        log('Options erhalten');
+        log('allowCredentials: ' + (options.allowCredentials?.length || 0) + ' Einträge');
+
+        // 2. Challenge zu ArrayBuffer
+        options.challenge = base64ToArrayBuffer(options.challenge);
+
+        // 3. allowCredentials konvertieren
+        if (options.allowCredentials) {
+          options.allowCredentials = options.allowCredentials.map(c => ({
+            ...c,
+            id: base64ToArrayBuffer(c.id)
+          }));
+        }
+
+        // 4. WebAuthn Login
+        log('Starte WebAuthn navigator.credentials.get...');
+        const assertion = await navigator.credentials.get({ publicKey: options });
+        log('Assertion erhalten: ' + assertion.id.substring(0, 20) + '...');
+
+        // 5. Assertion an Server senden
+        const assertionData = {
+          id: assertion.id,
+          rawId: arrayBufferToBase64(assertion.rawId),
+          response: {
+            authenticatorData: arrayBufferToBase64(assertion.response.authenticatorData),
+            clientDataJSON: arrayBufferToBase64(assertion.response.clientDataJSON),
+            signature: arrayBufferToBase64(assertion.response.signature),
+            userHandle: assertion.response.userHandle ? arrayBufferToBase64(assertion.response.userHandle) : null
+          },
+          type: assertion.type
+        };
+
+        log('Sende Assertion an Server...');
+        const verifyRes = await fetch('/api/login/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, assertion: assertionData })
+        });
+
+        const result = await verifyRes.json();
+        log('Server Antwort: ' + JSON.stringify(result));
+
+        if (result.success) {
+          showStatus('Login erfolgreich!', false);
+          log('ERFOLG - User ' + username + ' eingeloggt');
+        } else {
+          showStatus('Fehler: ' + (result.error || 'Unbekannt'), true);
+        }
+
+      } catch (err) {
+        log('FEHLER: ' + err.message);
+        showStatus('Fehler: ' + err.message, true);
+      }
+
+      document.getElementById('loginBtn').disabled = false;
+    }
+  </script>
+</body>
+</html>
