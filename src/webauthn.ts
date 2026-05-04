@@ -639,13 +639,22 @@ export async function verifyDiscoverableAuthentication(
       rpId: effectiveRpId,
     });
 
-    // Aktualisiere den Counter in der DB
-    await updateUserCounter(
-      user.username,
-      assertionResult.authnrData.get("counter") || user.counter
-    );
+    // Validate and update signCount (AUTH_P_004: Replay attack prevention)
+    const newCounter = assertionResult.authnrData.get("counter") || 0;
+    const storedCounter = user.counter || 0;
 
-    console.log("Discoverable Authentifizierung erfolgreich fuer:", user.username);
+    // Best-effort signCount validation:
+    // - signCount === 0: Accept (iOS platform authenticator behavior)
+    // - signCount > stored: Accept and update (valid increment)
+    // - signCount <= stored && signCount !== 0: Reject (replay/clone attack)
+    if (newCounter !== 0 && newCounter <= storedCounter) {
+      console.error(`❌ signCount validation failed: received ${newCounter} <= stored ${storedCounter} (AUTH_P_004)`);
+      throw new Error(`signCount validation failed: possible replay attack detected`);
+    }
+
+    await updateUserCounter(user.username, newCounter);
+
+    console.log(`Discoverable Authentifizierung erfolgreich fuer: ${user.username} (signCount: ${storedCounter} -> ${newCounter})`);
     return {
       success: true,
       username: user.username,
@@ -713,12 +722,21 @@ export async function verifyAuthentication(
       userHandle: user.userHandle ?? null,
       rpId: effectiveRpId,
     });
-    // Aktualisiere den Counter in der DB mithilfe der update-Funktion
-    await updateUserCounter(
-      username,
-      assertionResult.authnrData.get("counter") || user.counter
-    );
-    console.log("✅ Authentifizierung erfolgreich:", assertionResult);
+    // Validate and update signCount (AUTH_P_004: Replay attack prevention)
+    const newCounter = assertionResult.authnrData.get("counter") || 0;
+    const storedCounter = user.counter || 0;
+
+    // Best-effort signCount validation:
+    // - signCount === 0: Accept (iOS platform authenticator behavior)
+    // - signCount > stored: Accept and update (valid increment)
+    // - signCount <= stored && signCount !== 0: Reject (replay/clone attack)
+    if (newCounter !== 0 && newCounter <= storedCounter) {
+      console.error(`❌ signCount validation failed: received ${newCounter} <= stored ${storedCounter} (AUTH_P_004)`);
+      throw new Error(`signCount validation failed: possible replay attack detected`);
+    }
+
+    await updateUserCounter(username, newCounter);
+    console.log(`✅ Authentifizierung erfolgreich (signCount: ${storedCounter} -> ${newCounter}):`, assertionResult);
     return assertionResult;
   } catch (error) {
     console.error("❌ Fehler bei fido2.assertionResult():", error);
