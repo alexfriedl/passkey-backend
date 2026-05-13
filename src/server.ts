@@ -50,9 +50,20 @@ app.use(
 
 app.get("/.well-known/apple-app-site-association", (req, res) => {
   res.setHeader("Content-Type", "application/json");
-  res.sendFile(
-    path.join(__dirname, "../public/.well-known/apple-app-site-association")
-  );
+
+  // Serve different AASA based on host
+  const host = req.get('host') || '';
+  if (host.startsWith('finish.')) {
+    // finish.appsprint.de gets the finish-specific AASA
+    res.sendFile(
+      path.join(__dirname, "../public/.well-known/apple-app-site-association-finish")
+    );
+  } else {
+    // www.appsprint.de and others get the default AASA
+    res.sendFile(
+      path.join(__dirname, "../public/.well-known/apple-app-site-association")
+    );
+  }
 });
 
 // Universal Link routes - serve HTML files without .html extension

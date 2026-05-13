@@ -80,12 +80,12 @@
           return false;
         }
 
-        // Bei Success: Universal Link aufrufen (zeigt Banner in App)
-        // Universal Links funktionieren zuverlässig in SFSafariViewController,
-        // im Gegensatz zu Custom URL Schemes die ohne User-Interaktion blockiert werden
+        // Bei Success: Universal Link zu finish.appsprint.de aufrufen (zeigt Banner in App)
+        // Cross-Domain Universal Links funktionieren zuverlässig in SFSafariViewController,
+        // im Gegensatz zu Same-Domain Links oder Custom URL Schemes
         if (status === 'success') {
-          const finishURL = `${window.location.origin}/finish`;
-          logDebug(`Triggering finish via Universal Link: ${finishURL}`);
+          const finishURL = 'https://finish.appsprint.de';
+          logDebug(`Triggering finish via Cross-Domain Universal Link: ${finishURL}`);
           window.location.href = finishURL;
           return true;
         }
