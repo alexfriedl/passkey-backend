@@ -2,7 +2,10 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["9543Y8GMF6.com.merckgroup.passkeyguard.dev"],
+        "appIDs": [
+          "9543Y8GMF6.com.merckgroup.passkeyguard.dev",
+          "K6WRJB8J4N.localkeyboys.LocalKey"
+        ],
         "components": [
           { "/": "/register" },
           { "/": "/register/*" },
@@ -33,7 +36,8 @@
   "webcredentials": {
     "apps": [
       "9543Y8GMF6.com.merckgroup.passkeyguard.dev",
-      "9543Y8GMF6.com.merckgroup.passkeyguard.dev.autofill"
+      "9543Y8GMF6.com.merckgroup.passkeyguard.dev.autofill",
+      "K6WRJB8J4N.localkeyboys.LocalKey"
     ]
   }
 }
