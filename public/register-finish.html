@@ -80,18 +80,18 @@
           return false;
         }
 
-        // Bei Success: Universal Link aufrufen (zeigt Banner in App)
-        // Universal Links funktionieren zuverlässig in SFSafariViewController,
-        // im Gegensatz zu Custom URL Schemes die ohne User-Interaktion blockiert werden
+        const scheme = getCallbackScheme();
+
+        // Bei Success: passkeyguard://finish aufrufen (zeigt Banner in App)
+        // Die Seite bleibt im aktuellen State - iOS fängt den URL-Scheme ab
         if (status === 'success') {
-          const finishURL = `${window.location.origin}/finish`;
-          logDebug(`Triggering finish via Universal Link: ${finishURL}`);
-          window.location.href = finishURL;
+          const deeplink = `${scheme}://finish`;
+          logDebug(`Triggering finish callback: ${deeplink}`);
+          window.location.href = deeplink;
           return true;
         }
 
-        // Bei Error: Custom URL Scheme mit webauthn-completion
-        const scheme = getCallbackScheme();
+        // Bei Error: wie bisher mit webauthn-completion
         const params = new URLSearchParams();
         params.set('status', 'error');
         params.set('error', errorMsg || 'Unknown error');
