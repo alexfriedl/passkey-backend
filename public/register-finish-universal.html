@@ -111,10 +111,11 @@
         <p class="success-subtitle">Du kannst dich jetzt mit diesem Passkey anmelden.</p>
         <!--
           Universal Links require user tap to work in SFSafariViewController.
-          This link triggers the Universal Link which iOS intercepts.
-          Using www.appsprint.de/finish which is in the entitlements.
+          IMPORTANT: Must use a DIFFERENT domain than the current page!
+          Current page is on www.appsprint.de, so we link to finish.appsprint.de
+          (cross-domain Universal Link). iOS blocks same-domain Universal Links.
         -->
-        <a href="https://www.appsprint.de/finish" class="back-button" id="backToAppButton">
+        <a href="https://finish.appsprint.de/" class="back-button" id="backToAppButton">
           Zurück zur App
         </a>
         <p class="hint">
