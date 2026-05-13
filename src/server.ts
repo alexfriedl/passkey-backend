@@ -87,6 +87,13 @@ app.get("/fidodemo", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/fidodemo.html"));
 });
 
+// Finish route for Universal Link - serves finish.html
+// This is called when user taps "Zurück zur App" button on finish.appsprint.de
+// iOS intercepts this as a Universal Link and shows the back navigation banner
+app.get("/finish", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/finish.html"));
+});
+
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Apple App Attest Router

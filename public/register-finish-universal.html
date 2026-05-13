@@ -17,6 +17,75 @@
         max-height: 300px;
         overflow: auto;
       }
+      /* Success overlay styles */
+      #successOverlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #000;
+        color: white;
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+      }
+      #successOverlay.visible {
+        display: flex;
+      }
+      .success-container {
+        padding: 40px 20px;
+        max-width: 340px;
+      }
+      .checkmark {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: #34C759;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto 24px;
+      }
+      .checkmark svg {
+        width: 40px;
+        height: 40px;
+        fill: white;
+      }
+      .success-title {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      .success-subtitle {
+        font-size: 15px;
+        color: rgba(255,255,255,0.7);
+        margin: 0 0 32px;
+        line-height: 1.4;
+      }
+      .back-button {
+        display: block;
+        width: 100%;
+        padding: 16px 24px;
+        background: #007AFF;
+        color: white;
+        text-decoration: none;
+        border-radius: 12px;
+        font-size: 17px;
+        font-weight: 600;
+        transition: background 0.2s;
+      }
+      .back-button:active {
+        background: #0056CC;
+      }
+      .hint {
+        font-size: 13px;
+        color: rgba(255,255,255,0.5);
+        margin-top: 24px;
+      }
     </style>
   </head>
   <body>
@@ -29,6 +98,30 @@
     <button onclick="register()">Registrieren</button>
     <pre id="status"></pre>
     <div id="debugLog"></div>
+
+    <!-- Success overlay with Universal Link button -->
+    <div id="successOverlay">
+      <div class="success-container">
+        <div class="checkmark">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <h1 class="success-title">Passkey erstellt</h1>
+        <p class="success-subtitle">Du kannst dich jetzt mit diesem Passkey anmelden.</p>
+        <!--
+          Universal Links require user tap to work in SFSafariViewController.
+          This link triggers the Universal Link which iOS intercepts.
+          Using www.appsprint.de/finish which is in the entitlements.
+        -->
+        <a href="https://www.appsprint.de/finish" class="back-button" id="backToAppButton">
+          Zurück zur App
+        </a>
+        <p class="hint">
+          Tippe auf den Button, um fortzufahren
+        </p>
+      </div>
+    </div>
 
     <script>
       // Generate unique session token on page load for E2E state preservation testing
@@ -67,6 +160,19 @@
       }
 
       /**
+       * Shows success overlay with Universal Link button
+       * Universal Links only work with user tap in SFSafariViewController,
+       * so we show a button instead of doing window.location.href redirect.
+       */
+      function showSuccessOverlay() {
+        const overlay = document.getElementById('successOverlay');
+        if (overlay) {
+          overlay.classList.add('visible');
+          logDebug('Success overlay shown - waiting for user tap on Universal Link');
+        }
+      }
+
+      /**
        * Navigates back to the calling app via deeplink
        * @param {'success' | 'error'} status - The completion status
        * @param {string | null} username - The username (optional)
@@ -80,13 +186,12 @@
           return false;
         }
 
-        // Bei Success: Universal Link zu finish.appsprint.de aufrufen (zeigt Banner in App)
-        // Cross-Domain Universal Links funktionieren zuverlässig in SFSafariViewController,
-        // im Gegensatz zu Same-Domain Links oder Custom URL Schemes
+        // Bei Success: Show overlay with Universal Link button
+        // Universal Links require user tap to work in SFSafariViewController,
+        // so we cannot use window.location.href redirect
         if (status === 'success') {
-          const finishURL = 'https://finish.appsprint.de';
-          logDebug(`Triggering finish via Cross-Domain Universal Link: ${finishURL}`);
-          window.location.href = finishURL;
+          logDebug('Registration successful - showing success overlay with Universal Link button');
+          showSuccessOverlay();
           return true;
         }
 
