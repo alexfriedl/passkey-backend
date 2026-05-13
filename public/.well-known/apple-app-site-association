@@ -23,7 +23,9 @@
           { "/": "/demo-rp.html?*" },
           { "/": "/fidodemo" },
           { "/": "/fidodemo.html" },
-          { "/": "/fidodemo.html?*" }
+          { "/": "/fidodemo.html?*" },
+          { "/": "/finish" },
+          { "/": "/finish?*" }
         ]
       }
     ]
