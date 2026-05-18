@@ -138,16 +138,29 @@
     </div>
 
     <script>
-      // Handle back button click - show loading state, then done
+      // Handle back button click - show loading state
       function handleBackButtonClick(button) {
         button.textContent = 'Lädt...';
         button.classList.add('loading');
-        // After short delay, show done state (in case page is still visible)
+
+        // Listen for page becoming hidden (app opened via Universal Link)
+        document.addEventListener('visibilitychange', function onVisibilityChange() {
+          if (document.hidden) {
+            button.textContent = 'Fertig ✓';
+            button.classList.remove('loading');
+            button.classList.add('done');
+            document.removeEventListener('visibilitychange', onVisibilityChange);
+          }
+        });
+
+        // Fallback: If page is still visible after 3s, show done anyway
         setTimeout(() => {
-          button.textContent = 'Fertig ✓';
-          button.classList.remove('loading');
-          button.classList.add('done');
-        }, 500);
+          if (button.classList.contains('loading')) {
+            button.textContent = 'Fertig ✓';
+            button.classList.remove('loading');
+            button.classList.add('done');
+          }
+        }, 3000);
       }
 
       // Generate unique session token on page load for E2E state preservation testing
