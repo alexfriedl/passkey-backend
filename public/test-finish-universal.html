@@ -96,7 +96,7 @@
       function updateDeeplink() {
         const username = document.getElementById('username').value || 'test';
         const targetUrl = `https://www.appsprint.de/register-finish-universal.html?username=${encodeURIComponent(username)}`;
-        const returnUrl = `https://www.appsprint.de/demo-rp.html`;
+        const returnUrl = `https://www.appsprint.de/success.html`;
         const deeplink = `passkeyguard://open?origin=${encodeURIComponent(targetUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
 
         document.getElementById('deeplink').href = deeplink;
