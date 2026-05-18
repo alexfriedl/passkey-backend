@@ -138,26 +138,16 @@
     </div>
 
     <script>
-      // Handle back button click - show loading state
+      // Handle back button click - show loading state, then done after delay
       function handleBackButtonClick(button) {
         button.textContent = 'Lädt...';
         button.classList.add('loading');
 
-        function markDone() {
-          if (button.classList.contains('loading')) {
-            button.textContent = 'Fertig ✓';
-            button.classList.remove('loading');
-            button.classList.add('done');
-          }
-        }
-
-        // Try multiple events - one should fire when Universal Link opens app
-        document.addEventListener('visibilitychange', () => { if (document.hidden) markDone(); }, { once: true });
-        window.addEventListener('pagehide', markDone, { once: true });
-        window.addEventListener('blur', markDone, { once: true });
-
-        // Fallback timeout
-        setTimeout(markDone, 1500);
+        setTimeout(() => {
+          button.textContent = 'Fertig ✓';
+          button.classList.remove('loading');
+          button.classList.add('done');
+        }, 500);
       }
 
       // Generate unique session token on page load for E2E state preservation testing
