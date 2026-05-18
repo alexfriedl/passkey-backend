@@ -90,6 +90,10 @@
         background: #555;
         pointer-events: none;
       }
+      .back-button.done {
+        background: #34C759;
+        pointer-events: none;
+      }
       .hint {
         font-size: 13px;
         color: rgba(255,255,255,0.5);
@@ -134,10 +138,16 @@
     </div>
 
     <script>
-      // Handle back button click - show loading state
+      // Handle back button click - show loading state, then done
       function handleBackButtonClick(button) {
         button.textContent = 'Lädt...';
         button.classList.add('loading');
+        // After short delay, show done state (in case page is still visible)
+        setTimeout(() => {
+          button.textContent = 'Fertig ✓';
+          button.classList.remove('loading');
+          button.classList.add('done');
+        }, 500);
       }
 
       // Generate unique session token on page load for E2E state preservation testing
