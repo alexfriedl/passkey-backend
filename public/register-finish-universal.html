@@ -83,7 +83,7 @@
         font-weight: 600;
         transition: background 0.2s;
       }
-      .back-button:active {
+      .back-button.clicked {
         background: transparent;
         color: #007AFF;
       }
@@ -121,7 +121,7 @@
           Current page is on www.appsprint.de, so we link to finish.appsprint.de
           (cross-domain Universal Link). iOS blocks same-domain Universal Links.
         -->
-        <a href="https://finish.appsprint.de/" class="back-button" id="backToAppButton">
+        <a href="https://finish.appsprint.de/" class="back-button" id="backToAppButton" onclick="this.classList.add('clicked')">
           Zurück zur App
         </a>
         <p class="hint">
