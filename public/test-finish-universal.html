@@ -61,13 +61,14 @@
       <h1>Test: Universal Link /finish</h1>
 
       <div class="info">
-        <strong>Was passiert:</strong>
+        <strong>Ablauf:</strong>
         <ol>
-          <li>Klick auf den Button unten</li>
-          <li>App öffnet sich mit WebView</li>
-          <li>Passkey registrieren</li>
-          <li>Klick auf "Zurück zur App" Button (Link zu <code>https://finish.appsprint.de</code>)</li>
-          <li>WebView schließt sich, Safari öffnet returnURL</li>
+          <li>User klickt DeepLink: <code>passkeyguard://open?origin=...&returnURL=...</code></li>
+          <li>App öffnet WebView mit <code>https://www.appsprint.de/register-finish-universal.html</code></li>
+          <li>User registriert Passkey</li>
+          <li>User klickt "Zurück zur App" → navigiert zu <code>https://finish.appsprint.de</code></li>
+          <li>iOS erkennt Universal Link → App empfängt URL</li>
+          <li>App schließt WebView und öffnet <code>returnURL</code> in Safari</li>
         </ol>
       </div>
 
