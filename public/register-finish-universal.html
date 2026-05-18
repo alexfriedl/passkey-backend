@@ -86,14 +86,6 @@
       .back-button:active {
         background: #0056CC;
       }
-      .back-button.loading {
-        background: #555;
-        pointer-events: none;
-      }
-      .back-button.done {
-        background: #34C759;
-        pointer-events: none;
-      }
       .hint {
         font-size: 13px;
         color: rgba(255,255,255,0.5);
@@ -128,7 +120,7 @@
           Current page is on www.appsprint.de, so we link to finish.appsprint.de
           (cross-domain Universal Link). iOS blocks same-domain Universal Links.
         -->
-        <a href="https://finish.appsprint.de/" class="back-button" id="backToAppButton" onclick="handleBackButtonClick(this)">
+        <a href="https://finish.appsprint.de/" class="back-button" id="backToAppButton">
           Zurück zur App
         </a>
         <p class="hint">
@@ -138,18 +130,6 @@
     </div>
 
     <script>
-      // Handle back button click - show loading state, then done after delay
-      function handleBackButtonClick(button) {
-        button.textContent = 'Lädt...';
-        button.classList.add('loading');
-
-        setTimeout(() => {
-          button.textContent = 'Fertig ✓';
-          button.classList.remove('loading');
-          button.classList.add('done');
-        }, 500);
-      }
-
       // Generate unique session token on page load for E2E state preservation testing
       // A reload would generate a new token, proving the page was reloaded
       const sessionToken = Math.random().toString(36).substring(2, 10);
