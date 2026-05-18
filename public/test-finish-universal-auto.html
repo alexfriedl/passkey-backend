@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test: Auto Redirect Universal Link</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        margin: 0;
+        background: #000;
+        color: white;
+        text-align: center;
+      }
+      .container {
+        padding: 40px 20px;
+        max-width: 340px;
+      }
+      .checkmark {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: #34C759;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto 24px;
+      }
+      .checkmark svg {
+        width: 40px;
+        height: 40px;
+        fill: white;
+      }
+      h1 {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      p {
+        font-size: 15px;
+        color: rgba(255,255,255,0.7);
+        margin: 0 0 32px;
+        line-height: 1.4;
+      }
+      .status {
+        font-size: 13px;
+        color: rgba(255,255,255,0.5);
+        margin-top: 24px;
+      }
+      #countdown {
+        font-size: 48px;
+        font-weight: bold;
+        color: #007AFF;
+        margin: 20px 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="checkmark">
+        <svg viewBox="0 0 24 24">
+          <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+        </svg>
+      </div>
+      <h1>Test: Auto Redirect</h1>
+      <p>Automatischer Universal Link Redirect zu finish.appsprint.de</p>
+      <div id="countdown">3</div>
+      <p class="status" id="status">Redirecting in 3 seconds...</p>
+    </div>
+
+    <script>
+      let count = 3;
+      const countdownEl = document.getElementById('countdown');
+      const statusEl = document.getElementById('status');
+
+      const timer = setInterval(() => {
+        count--;
+        countdownEl.textContent = count;
+        statusEl.textContent = `Redirecting in ${count} seconds...`;
+
+        if (count <= 0) {
+          clearInterval(timer);
+          statusEl.textContent = 'Redirecting now via window.location.href...';
+
+          // Test: Automatischer Universal Link Redirect (ohne User-Tap)
+          // Dies sollte das Banner triggern, wenn iOS es erlaubt
+          window.location.href = 'https://finish.appsprint.de/';
+        }
+      }, 1000);
+    </script>
+  </body>
+</html>
