@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test: Banner bei Finish (Same-Domain Link)</title>
+    <style>
+      body {
+        font-family: sans-serif;
+        margin: 40px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+      }
+      .info {
+        margin: 20px 0;
+        padding: 15px;
+        border-left: 4px solid #007bff;
+        background: #f8f9fa;
+      }
+      a.button {
+        display: inline-block;
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 15px 30px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 18px;
+        text-decoration: none;
+        margin: 20px 0;
+      }
+      a.button:hover {
+        background: #1e7e34;
+      }
+      input {
+        padding: 10px;
+        font-size: 16px;
+        width: 200px;
+        margin: 10px 0;
+      }
+      code {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Test: Same-Domain Universal Link /finish</h1>
+
+      <div class="info">
+        <strong>Ziel des Tests:</strong> Prüfen, ob ein Universal Link auf der
+        <strong>gleichen Domain</strong> (kein Subdomain-Wechsel) aus einer
+        iOS-WebView heraus die App auslöst.
+      </div>
+
+      <div class="info">
+        <strong>Ablauf:</strong>
+        <ol>
+          <li>
+            User klickt DeepLink:
+            <code>passkeyguard://open?origin=...&returnURL=...</code>
+          </li>
+          <li>
+            App öffnet WebView mit
+            <code>https://www.appsprint.de/samedomain-finish.html</code>
+          </li>
+          <li>
+            In der WebView wird der Universal Link
+            <code>https://www.appsprint.de/finish</code> ausgelöst
+            (<strong>gleiche</strong> Domain!)
+          </li>
+          <li>
+            <strong>Test:</strong> Fängt iOS den Link ab (App öffnet) oder lädt
+            stattdessen die <code>/finish</code>-Seite in der WebView?
+          </li>
+        </ol>
+      </div>
+
+      <div>
+        <label>Username:</label><br />
+        <input type="text" id="username" value="test_samedomain" />
+      </div>
+
+      <div style="text-align: center;">
+        <a id="deeplink" class="button" href="#">Start Test (DeepLink)</a>
+      </div>
+
+      <div class="info" style="border-color: #ffc107">
+        <strong>DeepLink:</strong><br />
+        <code id="deeplinkUrl"></code>
+      </div>
+    </div>
+
+    <script>
+      function updateDeeplink() {
+        const username = document.getElementById("username").value || "test";
+        const targetUrl = `https://www.appsprint.de/samedomain-finish.html?username=${encodeURIComponent(
+          username
+        )}`;
+        const returnUrl = `https://www.appsprint.de/success.html`;
+        const deeplink = `passkeyguard://open?origin=${encodeURIComponent(
+          targetUrl
+        )}&returnURL=${encodeURIComponent(returnUrl)}`;
+
+        document.getElementById("deeplink").href = deeplink;
+        document.getElementById("deeplinkUrl").textContent = deeplink;
+      }
+
+      document
+        .getElementById("username")
+        .addEventListener("input", updateDeeplink);
+
+      updateDeeplink();
+    </script>
+  </body>
+</html>

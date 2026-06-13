@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test: Same-Domain Universal Link</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        margin: 0;
+        background: #f5f5f5;
+        color: #222;
+      }
+      .container {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 24px 20px 60px;
+      }
+      h1 {
+        font-size: 22px;
+        text-align: center;
+      }
+      .info {
+        margin: 16px 0;
+        padding: 14px;
+        border-left: 4px solid #007bff;
+        background: #fff;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .info.warn {
+        border-color: #ffc107;
+      }
+      button,
+      a.button {
+        display: block;
+        width: 100%;
+        box-sizing: border-box;
+        background: #007bff;
+        color: white;
+        border: none;
+        padding: 16px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        text-align: center;
+        text-decoration: none;
+        margin: 12px 0;
+      }
+      a.button {
+        background: #28a745;
+      }
+      button.alt {
+        background: #6f42c1;
+      }
+      button.auto {
+        background: #fd7e14;
+      }
+      code {
+        background: #e9ecef;
+        padding: 2px 6px;
+        border-radius: 4px;
+        word-break: break-all;
+      }
+      #log {
+        margin-top: 20px;
+        padding: 12px;
+        background: #1e1e1e;
+        color: #0f0;
+        font-family: ui-monospace, Menlo, monospace;
+        font-size: 12px;
+        border-radius: 8px;
+        white-space: pre-wrap;
+        word-break: break-all;
+        min-height: 80px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Same-Domain Universal Link Test</h1>
+
+      <div class="info">
+        Diese Seite läuft auf <code id="currentHost"></code> und versucht den
+        Universal Link <code id="targetUrl"></code> auf
+        <strong>derselben Domain</strong> auszulösen.
+      </div>
+
+      <div class="info warn">
+        <strong>Erwartetes Verhalten:</strong><br />
+        • App öffnet sich / Banner erscheint → Same-Domain Universal Link
+        funktioniert in der WebView ✅<br />
+        • Stattdessen lädt <code>/finish</code> ("Fertig"-Seite) → iOS hat den
+        Universal Link <em>nicht</em> abgefangen (Same-Domain geblockt) ❌
+      </div>
+
+      <p style="font-size: 14px; font-weight: 600; margin-top: 24px;">
+        Methode 1 – Tap auf echten Link (am zuverlässigsten in
+        SFSafariViewController):
+      </p>
+      <a id="tapLink" class="button" href="#">Link tappen → /finish</a>
+
+      <p style="font-size: 14px; font-weight: 600;">
+        Methode 2 – Programmatisch <code>window.location.href</code>:
+      </p>
+      <button class="alt" onclick="triggerLocation()">
+        window.location.href → /finish
+      </button>
+
+      <p style="font-size: 14px; font-weight: 600;">
+        Methode 3 – Auto-Redirect nach 3s (ohne User-Tap):
+      </p>
+      <button class="auto" onclick="startAuto()">Auto-Redirect starten</button>
+
+      <div id="log"></div>
+    </div>
+
+    <script>
+      // Universal-Link-Ziel auf der GLEICHEN Domain wie diese Seite.
+      // ?from=samedomain dient nur dazu, auf der Zielseite zu erkennen,
+      // dass der Link NICHT abgefangen wurde (Test fehlgeschlagen).
+      const TARGET = `${window.location.origin}/finish?from=samedomain`;
+
+      const logEl = document.getElementById("log");
+      function logDebug(msg) {
+        const t = new Date().toISOString().substring(11, 23);
+        logEl.textContent += `[${t}] ${msg}\n`;
+      }
+
+      document.getElementById("currentHost").textContent =
+        window.location.host;
+      document.getElementById("targetUrl").textContent = TARGET;
+
+      const tapLink = document.getElementById("tapLink");
+      tapLink.href = TARGET;
+      tapLink.addEventListener("click", () => {
+        logDebug("Methode 1: Tap auf <a href> → " + TARGET);
+      });
+
+      function triggerLocation() {
+        logDebug("Methode 2: window.location.href = " + TARGET);
+        window.location.href = TARGET;
+      }
+
+      function startAuto() {
+        let count = 3;
+        logDebug("Methode 3: Auto-Redirect in " + count + "s...");
+        const timer = setInterval(() => {
+          count--;
+          if (count <= 0) {
+            clearInterval(timer);
+            logDebug("Methode 3: window.location.href = " + TARGET);
+            window.location.href = TARGET;
+          } else {
+            logDebug("Auto-Redirect in " + count + "s...");
+          }
+        }, 1000);
+      }
+
+      logDebug("Seite geladen auf " + window.location.host);
+    </script>
+  </body>
+</html>
