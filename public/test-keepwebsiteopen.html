@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Test: keepWebsiteOpen Parameter</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #1a1a2e;
+        color: #eee;
+        min-height: 100vh;
+      }
+      .container {
+        max-width: 700px;
+        margin: 0 auto;
+      }
+      h1 {
+        color: #00d9ff;
+        text-align: center;
+        margin-bottom: 10px;
+      }
+      .subtitle {
+        text-align: center;
+        color: #888;
+        margin-bottom: 30px;
+      }
+      .test-case {
+        background: #16213e;
+        padding: 20px;
+        border-radius: 12px;
+        margin: 15px 0;
+        border-left: 4px solid #00d9ff;
+      }
+      .test-case.green { border-left-color: #00ff88; }
+      .test-case.orange { border-left-color: #ff9500; }
+      .test-case.red { border-left-color: #ff3b5c; }
+
+      .test-case h3 {
+        margin: 0 0 10px 0;
+        color: #fff;
+      }
+      .test-case p {
+        margin: 5px 0;
+        color: #aaa;
+        font-size: 14px;
+      }
+      .test-case .expected {
+        background: #0f3460;
+        padding: 10px;
+        border-radius: 6px;
+        margin: 10px 0;
+        font-size: 13px;
+      }
+      .buttons {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+        flex-wrap: wrap;
+      }
+      a.btn {
+        display: inline-block;
+        padding: 12px 20px;
+        border-radius: 8px;
+        text-decoration: none;
+        font-weight: 600;
+        font-size: 14px;
+        transition: transform 0.1s;
+      }
+      a.btn:active {
+        transform: scale(0.98);
+      }
+      .btn-schema {
+        background: #00d9ff;
+        color: #000;
+      }
+      .btn-universal {
+        background: #00ff88;
+        color: #000;
+      }
+      code {
+        background: #0f3460;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        word-break: break-all;
+      }
+      .divider {
+        border-top: 1px solid #333;
+        margin: 30px 0;
+      }
+      .info-box {
+        background: #0f3460;
+        padding: 15px;
+        border-radius: 8px;
+        margin: 20px 0;
+      }
+      .info-box h4 {
+        margin: 0 0 10px 0;
+        color: #00d9ff;
+      }
+      .info-box ul {
+        margin: 0;
+        padding-left: 20px;
+      }
+      .info-box li {
+        margin: 5px 0;
+        color: #ccc;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>keepWebsiteOpen Test</h1>
+      <p class="subtitle">Teste alle Finish-Callback Szenarien</p>
+
+      <div class="info-box">
+        <h4>Voraussetzung</h4>
+        <ul>
+          <li>PasskeyGuard App muss installiert sein</li>
+          <li>Starte zuerst einen Flow mit dem "Start Flow" Button</li>
+          <li>Dann teste die Finish-Callbacks</li>
+        </ul>
+      </div>
+
+      <!-- START FLOW -->
+      <div class="test-case">
+        <h3>0. Flow starten</h3>
+        <p>Öffnet WebView - muss vor den Finish-Tests ausgeführt werden</p>
+        <div class="buttons">
+          <a class="btn btn-schema" href="passkeyguard://open?url=https%3A%2F%2Fwww.appsprint.de%2Ftest-keepwebsiteopen.html&returnURL=https%3A%2F%2Fwww.appsprint.de%2Fsuccess.html">
+            Start Flow (mit returnURL)
+          </a>
+          <a class="btn btn-universal" href="passkeyguard://open?url=https%3A%2F%2Fwww.appsprint.de%2Ftest-keepwebsiteopen.html">
+            Start Flow (ohne returnURL)
+          </a>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+
+      <!-- FALL 1: keepWebsiteOpen=true -->
+      <div class="test-case green">
+        <h3>Fall 1: keepWebsiteOpen=true</h3>
+        <p>Number Matching - User muss finale Seite sehen</p>
+        <div class="expected">
+          <strong>Erwartetes Ergebnis:</strong><br>
+          WebView bleibt offen + Banner erscheint oben
+        </div>
+        <div class="buttons">
+          <a class="btn btn-schema" href="passkeyguard://finish?keepWebsiteOpen=true">
+            Schema Link
+          </a>
+          <a class="btn btn-universal" href="https://finish.appsprint.de/finish?keepWebsiteOpen=true">
+            Universal Link
+          </a>
+        </div>
+        <p style="margin-top: 10px;"><code>passkeyguard://finish?keepWebsiteOpen=true</code></p>
+      </div>
+
+      <!-- FALL 2: keepWebsiteOpen=false MIT returnURL -->
+      <div class="test-case orange">
+        <h3>Fall 2: keepWebsiteOpen=false + returnURL</h3>
+        <p>WebRTC / Registration - Auto-Close und Redirect</p>
+        <div class="expected">
+          <strong>Erwartetes Ergebnis:</strong><br>
+          WebView schließt + returnURL (success.html) wird geöffnet<br>
+          <em>(Nur wenn Flow mit returnURL gestartet wurde!)</em>
+        </div>
+        <div class="buttons">
+          <a class="btn btn-schema" href="passkeyguard://finish?keepWebsiteOpen=false">
+            Schema Link
+          </a>
+          <a class="btn btn-universal" href="https://finish.appsprint.de/finish?keepWebsiteOpen=false">
+            Universal Link
+          </a>
+        </div>
+        <p style="margin-top: 10px;"><code>passkeyguard://finish?keepWebsiteOpen=false</code></p>
+      </div>
+
+      <!-- FALL 3: keepWebsiteOpen=false OHNE returnURL -->
+      <div class="test-case red">
+        <h3>Fall 3: keepWebsiteOpen=false (ohne returnURL)</h3>
+        <p>WebView schließt ohne Redirect</p>
+        <div class="expected">
+          <strong>Erwartetes Ergebnis:</strong><br>
+          WebView schließt nur (kein Redirect)<br>
+          <em>(Starte Flow OHNE returnURL um diesen Fall zu testen)</em>
+        </div>
+        <div class="buttons">
+          <a class="btn btn-schema" href="passkeyguard://finish?keepWebsiteOpen=false">
+            Schema Link
+          </a>
+        </div>
+      </div>
+
+      <!-- FALL 4: Kein Parameter (Backwards Compatibility) -->
+      <div class="test-case">
+        <h3>Fall 4: Kein keepWebsiteOpen Parameter</h3>
+        <p>Backwards Compatibility - verhält sich wie keepWebsiteOpen=false</p>
+        <div class="expected">
+          <strong>Erwartetes Ergebnis:</strong><br>
+          Wie Fall 2/3 - WebView schließt (+ returnURL falls vorhanden)
+        </div>
+        <div class="buttons">
+          <a class="btn btn-schema" href="passkeyguard://finish">
+            Schema Link (ohne Param)
+          </a>
+          <a class="btn btn-universal" href="https://finish.appsprint.de/finish">
+            Universal Link (ohne Param)
+          </a>
+        </div>
+        <p style="margin-top: 10px;"><code>passkeyguard://finish</code></p>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="info-box">
+        <h4>Debug Logs</h4>
+        <p style="color: #aaa;">In Xcode Console filtern nach:</p>
+        <code>[FINISH-HANDLER]</code>
+        <p style="color: #aaa; margin-top: 10px;">Beispiel Output:</p>
+        <code>[FINISH-HANDLER] keepWebsiteOpen: true, returnURL: https://...</code>
+      </div>
+
+    </div>
+  </body>
+</html>
