@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": [
+          "K6WRJB8J4N.localkeyboys.LocalKey",
+          "9543Y8GMF6.com.merckgroup.passkeyguard.dev"
+        ],
+        "components": [
+          { "/": "/" },
+          { "/": "/*" }
+        ]
+      }
+    ]
+  }
+}

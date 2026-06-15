@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registrierung abgeschlossen</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #000;
+      color: white;
+      text-align: center;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+    .container {
+      padding: 40px 20px;
+      max-width: 340px;
+    }
+    .checkmark {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      background: #34C759;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto 24px;
+    }
+    .checkmark svg {
+      width: 40px;
+      height: 40px;
+      fill: white;
+    }
+    h1 {
+      font-size: 24px;
+      font-weight: 600;
+      margin: 0 0 12px;
+    }
+    p {
+      font-size: 15px;
+      color: rgba(255,255,255,0.7);
+      margin: 0 0 32px;
+      line-height: 1.4;
+    }
+    .back-button {
+      display: block;
+      width: 100%;
+      padding: 16px 24px;
+      background: #007AFF;
+      color: white;
+      text-decoration: none;
+      border-radius: 12px;
+      font-size: 17px;
+      font-weight: 600;
+      transition: background 0.2s;
+    }
+    .back-button:active {
+      background: #0056CC;
+    }
+    .hint {
+      font-size: 13px;
+      color: rgba(255,255,255,0.5);
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="checkmark">
+      <svg viewBox="0 0 24 24">
+        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+      </svg>
+    </div>
+    <h1>Passkey erstellt</h1>
+    <p>Du kannst dich jetzt mit diesem Passkey anmelden.</p>
+    <!--
+      Universal Links require user tap to work in SFSafariViewController.
+      This link points to www.appsprint.de (main domain) which triggers the Universal Link.
+      The /finish path is handled by the app to show the back navigation banner.
+      Using www subdomain because that's in the entitlements (applinks:www.appsprint.de)
+    -->
+    <a href="https://www.appsprint.de/finish" class="back-button">
+      Zurück zur App
+    </a>
+    <p class="hint">
+      Tippe auf den Button, um fortzufahren
+    </p>
+  </div>
+</body>
+</html>
