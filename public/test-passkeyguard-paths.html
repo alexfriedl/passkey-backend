@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Test: /passkeyguard/open und /passkeyguard/finish</title>
+    <title>PasskeyGuard Universal Link Test</title>
     <style>
       body {
         font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
@@ -12,7 +12,7 @@
         background: #f5f5f5;
       }
       .container {
-        max-width: 600px;
+        max-width: 400px;
         margin: 0 auto;
         background: white;
         padding: 30px;
@@ -22,251 +22,136 @@
       h1 {
         color: #333;
         text-align: center;
-        font-size: 24px;
+        font-size: 22px;
+        margin-bottom: 10px;
       }
-      h2 {
+      .subtitle {
+        text-align: center;
         color: #666;
-        font-size: 18px;
-        margin-top: 30px;
-        border-bottom: 1px solid #eee;
-        padding-bottom: 10px;
-      }
-      .info {
-        margin: 20px 0;
-        padding: 15px;
-        border-left: 4px solid #007bff;
-        background: #f8f9fa;
         font-size: 14px;
+        margin-bottom: 30px;
       }
-      .warning {
-        border-left-color: #ffc107;
-        background: #fff8e1;
+      .toggle-container {
+        display: flex;
+        background: #f0f0f0;
+        border-radius: 10px;
+        padding: 4px;
+        margin-bottom: 20px;
+      }
+      .toggle-option {
+        flex: 1;
+        padding: 12px;
+        text-align: center;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 500;
+        transition: all 0.2s;
+      }
+      .toggle-option.active {
+        background: white;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      }
+      .toggle-option:not(.active) {
+        color: #666;
+      }
+      .description {
+        background: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        font-size: 13px;
+        color: #555;
+        min-height: 40px;
       }
       a.button {
         display: block;
         background: #007AFF;
         color: white;
         border: none;
-        padding: 16px 24px;
+        padding: 18px 24px;
         border-radius: 12px;
         cursor: pointer;
         font-size: 17px;
         font-weight: 600;
         text-decoration: none;
-        margin: 15px 0;
         text-align: center;
       }
       a.button:hover {
         background: #0056b3;
       }
-      a.button.green {
-        background: #34C759;
-      }
-      a.button.green:hover {
-        background: #2da44e;
-      }
-      a.button.orange {
-        background: #FF9500;
-      }
-      a.button.orange:hover {
-        background: #e08600;
-      }
-      input, select {
+      .info {
+        margin-top: 20px;
         padding: 12px;
-        font-size: 16px;
-        width: 100%;
-        margin: 8px 0;
-        border: 1px solid #ddd;
+        background: #e8f4fd;
         border-radius: 8px;
-        box-sizing: border-box;
-      }
-      label {
-        font-weight: 600;
-        color: #333;
-        display: block;
-        margin-top: 15px;
-      }
-      code {
-        background: #e9ecef;
-        padding: 2px 6px;
-        border-radius: 4px;
-        font-size: 13px;
-        word-break: break-all;
-      }
-      .url-display {
-        background: #f8f9fa;
-        padding: 12px;
-        border-radius: 8px;
-        margin: 10px 0;
         font-size: 12px;
-        word-break: break-all;
-        border: 1px solid #dee2e6;
-      }
-      .section {
-        margin: 30px 0;
-        padding: 20px;
-        background: #fafafa;
-        border-radius: 8px;
+        color: #0066cc;
       }
     </style>
   </head>
   <body>
     <div class="container">
-      <h1>Test: Universal Link Pfade</h1>
+      <h1>PasskeyGuard Test</h1>
+      <p class="subtitle">Cross-Domain Universal Link Flow</p>
+
+      <div class="toggle-container">
+        <div class="toggle-option active" id="optBanner" onclick="setMode('banner')">
+          Banner zeigen
+        </div>
+        <div class="toggle-option" id="optClose" onclick="setMode('close')">
+          Safari schliessen
+        </div>
+      </div>
+
+      <div class="description" id="description">
+        Nach Registrierung bleibt Safari offen und zeigt ein Banner.
+        Ideal fuer Detached Auth / Number Matching.
+      </div>
+
+      <a id="startLink" class="button" href="#">
+        Flow starten
+      </a>
 
       <div class="info">
-        <strong>Neue Pfade:</strong><br>
-        <code>/passkeyguard/open</code> - Startet Safari-Flow<br>
-        <code>/passkeyguard/finish</code> - Beendet Flow (Banner/Schliessen)
-      </div>
-
-      <!-- Domain Switch -->
-      <div class="section" style="background: #e3f2fd;">
-        <h2 style="margin-top: 0;">Domain Einstellung</h2>
-        <p style="font-size: 14px; color: #666;">iOS blockiert same-domain Universal Links in SFSafariViewController. Cross-domain sollte funktionieren.</p>
-
-        <label>
-          <input type="radio" name="domainType" value="same" id="domainSame">
-          <strong>Same Domain</strong> - www.appsprint.de (wird evtl. nicht funktionieren)
-        </label>
-        <br><br>
-        <label>
-          <input type="radio" name="domainType" value="cross" id="domainCross" checked>
-          <strong>Cross Domain</strong> - finish.appsprint.de (empfohlen)
-        </label>
-        <br><br>
-        <label>
-          <input type="radio" name="domainType" value="custom" id="domainCustom">
-          <strong>Custom Domain:</strong>
-        </label>
-        <input type="text" id="customDomain" value="https://me.merckgroup.com" placeholder="https://example.com" style="margin-top: 5px;" />
-      </div>
-
-      <!-- TEST 1: /passkeyguard/open -->
-      <div class="section">
-        <h2>1. Test: /passkeyguard/open</h2>
-        <p>Dieser Universal Link startet den PasskeyGuard Safari-Flow.</p>
-
-        <label>Target URL (wird in Safari geoeffnet):</label>
-        <input type="text" id="targetUrl" value="https://www.appsprint.de/register.html" />
-
-        <label>Return URL (optional):</label>
-        <input type="text" id="returnUrl" value="https://www.appsprint.de/success.html" />
-
-        <label>Username (optional):</label>
-        <input type="text" id="username" value="testuser" />
-
-        <div class="url-display">
-          <strong>Universal Link:</strong><br>
-          <span id="openLinkDisplay"></span>
-        </div>
-
-        <a id="openLink" class="button green" href="#">
-          /passkeyguard/open testen
-        </a>
-      </div>
-
-      <!-- TEST 2: /passkeyguard/finish -->
-      <div class="section">
-        <h2>2. Test: /passkeyguard/finish</h2>
-        <p>Dieser Universal Link beendet den Flow.</p>
-
-        <label>keepWebsiteOpen:</label>
-        <select id="keepWebsiteOpen">
-          <option value="true">true - Banner zeigen (Detached Auth / Number Matching)</option>
-          <option value="false">false - Safari schliessen (Registration / WebRTC)</option>
-        </select>
-
-        <div class="url-display">
-          <strong>Universal Link:</strong><br>
-          <span id="finishLinkDisplay"></span>
-        </div>
-
-        <a id="finishLink" class="button orange" href="#">
-          /passkeyguard/finish testen
-        </a>
-      </div>
-
-      <!-- TEST 3: Kompletter Flow -->
-      <div class="section">
-        <h2>3. Kompletter Flow-Test</h2>
-        <p>Oeffnet eine Registrierungsseite die am Ende <code>/passkeyguard/finish</code> aufruft.</p>
-
-        <div class="info warning">
-          <strong>Hinweis:</strong> Diese Seite muss auf www.appsprint.de deployed sein, damit Universal Links funktionieren.
-        </div>
-
-        <a id="fullFlowLink" class="button" href="#">
-          Kompletten Flow starten
-        </a>
-      </div>
-
-      <!-- Info -->
-      <div class="info">
-        <strong>Voraussetzungen:</strong>
-        <ul style="margin: 10px 0; padding-left: 20px;">
-          <li>App muss <code>www.appsprint.de</code> in allowedDomains haben</li>
-          <li>AASA muss <code>/passkeyguard/*</code> Pfade enthalten</li>
-          <li>Test auf echtem iOS-Geraet (Simulator unterstuetzt keine Universal Links)</li>
-        </ul>
+        <strong>Cross-Domain:</strong> finish.appsprint.de<br>
+        Registrierung auf www.appsprint.de
       </div>
     </div>
 
     <script>
-      function getSelectedDomain() {
-        if (document.getElementById('domainSame').checked) {
-          return 'https://www.appsprint.de';
-        } else if (document.getElementById('domainCross').checked) {
-          return 'https://finish.appsprint.de';
+      let keepWebsiteOpen = 'true';
+
+      function setMode(mode) {
+        if (mode === 'banner') {
+          keepWebsiteOpen = 'true';
+          document.getElementById('optBanner').classList.add('active');
+          document.getElementById('optClose').classList.remove('active');
+          document.getElementById('description').textContent =
+            'Nach Registrierung bleibt Safari offen und zeigt ein Banner. Ideal fuer Detached Auth / Number Matching.';
         } else {
-          return document.getElementById('customDomain').value || 'https://www.appsprint.de';
+          keepWebsiteOpen = 'false';
+          document.getElementById('optClose').classList.add('active');
+          document.getElementById('optBanner').classList.remove('active');
+          document.getElementById('description').textContent =
+            'Nach Registrierung wird Safari automatisch geschlossen. Ideal fuer Registration / WebRTC.';
         }
+        updateLink();
       }
 
-      function updateLinks() {
-        const baseDomain = getSelectedDomain();
-        const targetUrl = document.getElementById('targetUrl').value;
-        const returnUrl = document.getElementById('returnUrl').value;
-        const username = document.getElementById('username').value;
-        const keepWebsiteOpen = document.getElementById('keepWebsiteOpen').value;
+      function updateLink() {
+        const finishDomain = 'https://finish.appsprint.de';
+        const username = 'testuser_' + Date.now();
+        const returnUrl = 'https://www.appsprint.de/success.html';
 
-        // Build target URL with username
-        let finalTargetUrl = targetUrl;
-        if (username && !targetUrl.includes('username=')) {
-          const separator = targetUrl.includes('?') ? '&' : '?';
-          finalTargetUrl = `${targetUrl}${separator}username=${encodeURIComponent(username)}&originApp=true`;
-        }
+        const registerUrl = `https://www.appsprint.de/register-passkeyguard-finish.html?username=${encodeURIComponent(username)}&originApp=true&finishDomain=${encodeURIComponent(finishDomain)}&keepWebsiteOpen=${keepWebsiteOpen}`;
+        const flowUrl = `${finishDomain}/passkeyguard/open?url=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
 
-        // /passkeyguard/open URL
-        let openUrl = `${baseDomain}/passkeyguard/open?url=${encodeURIComponent(finalTargetUrl)}`;
-        if (returnUrl) {
-          openUrl += `&returnURL=${encodeURIComponent(returnUrl)}`;
-        }
-
-        document.getElementById('openLink').href = openUrl;
-        document.getElementById('openLinkDisplay').textContent = openUrl;
-
-        // /passkeyguard/finish URL
-        const finishUrl = `${baseDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-        document.getElementById('finishLink').href = finishUrl;
-        document.getElementById('finishLinkDisplay').textContent = finishUrl;
-
-        // Full flow URL (uses /passkeyguard/open to start)
-        // Note: Register page is always on www.appsprint.de, but finish uses selected domain
-        // Pass keepWebsiteOpen to the register page so it knows what to use for finish
-        const registerUrl = `https://www.appsprint.de/register-passkeyguard-finish.html?username=${encodeURIComponent(username)}&originApp=true&finishDomain=${encodeURIComponent(baseDomain)}&keepWebsiteOpen=${keepWebsiteOpen}`;
-        const fullFlowUrl = `${baseDomain}/passkeyguard/open?url=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
-        document.getElementById('fullFlowLink').href = fullFlowUrl;
+        document.getElementById('startLink').href = flowUrl;
       }
 
-      // Update on any input change
-      document.querySelectorAll('input, select').forEach(el => {
-        el.addEventListener('input', updateLinks);
-        el.addEventListener('change', updateLinks);
-      });
-
-      // Initial update
-      updateLinks();
+      // Initial
+      updateLink();
     </script>
   </body>
 </html>
