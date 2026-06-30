@@ -94,6 +94,22 @@ app.get("/finish", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/finish.html"));
 });
 
+// PasskeyGuard Universal Link routes
+// These are intercepted by iOS as Universal Links - the HTML is just a fallback
+app.get("/passkeyguard/finish", (req, res) => {
+  res.sendFile(path.join(__dirname, "../public/finish.html"));
+});
+
+app.get("/passkeyguard/open", (req, res) => {
+  // Fallback if Universal Link not intercepted - redirect to target URL
+  const targetUrl = req.query.url as string;
+  if (targetUrl) {
+    res.redirect(targetUrl);
+  } else {
+    res.status(400).send("Missing url parameter");
+  }
+});
+
 app.use(express.static(path.join(__dirname, "../public")));
 
 // Apple App Attest Router
