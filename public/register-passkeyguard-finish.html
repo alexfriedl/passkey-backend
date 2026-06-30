@@ -230,12 +230,26 @@
         // Check if a specific finish domain was passed via URL
         const finishDomain = getUrlParam('finishDomain');
 
+        // If finishDomain is set, automatically trigger the finish Universal Link
+        // No need to show buttons - just navigate directly
+        if (finishDomain) {
+          const finishUrl = `${finishDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+          logDebug(`Auto-navigating to finish: ${finishUrl}`);
+
+          // Use schema link as primary (most reliable)
+          const schemaUrl = `passkeyguard://finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+          logDebug(`Using schema link: ${schemaUrl}`);
+          window.location.href = schemaUrl;
+          return;
+        }
+
+        // Fallback: Show buttons if no finishDomain specified
         // Same domain (www.appsprint.de)
         const sameDomainUrl = `https://www.appsprint.de/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
         document.getElementById('finishSameDomain').href = sameDomainUrl;
 
         // Cross domain (finish.appsprint.de or custom)
-        const crossDomain = finishDomain || 'https://finish.appsprint.de';
+        const crossDomain = 'https://finish.appsprint.de';
         const crossDomainUrl = `${crossDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
         document.getElementById('finishCrossDomain').href = crossDomainUrl;
         document.getElementById('finishCrossDomain').textContent = `/passkeyguard/finish (${crossDomain.replace('https://', '')})`;

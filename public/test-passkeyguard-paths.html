@@ -253,7 +253,8 @@
 
         // Full flow URL (uses /passkeyguard/open to start)
         // Note: Register page is always on www.appsprint.de, but finish uses selected domain
-        const registerUrl = `https://www.appsprint.de/register-passkeyguard-finish.html?username=${encodeURIComponent(username)}&originApp=true&finishDomain=${encodeURIComponent(baseDomain)}`;
+        // Pass keepWebsiteOpen to the register page so it knows what to use for finish
+        const registerUrl = `https://www.appsprint.de/register-passkeyguard-finish.html?username=${encodeURIComponent(username)}&originApp=true&finishDomain=${encodeURIComponent(baseDomain)}&keepWebsiteOpen=${keepWebsiteOpen}`;
         const fullFlowUrl = `${baseDomain}/passkeyguard/open?url=${encodeURIComponent(registerUrl)}&returnURL=${encodeURIComponent(returnUrl)}`;
         document.getElementById('fullFlowLink').href = fullFlowUrl;
       }
