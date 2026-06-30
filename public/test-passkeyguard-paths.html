@@ -92,7 +92,7 @@
   </head>
   <body>
     <div class="container">
-      <h1>Cross-Domain Universal Link Flow</h1>
+      <h1>Cross-Domain Universal Link</h1>
 
       <div class="toggle-container">
         <div class="toggle-option active" id="optBanner" onclick="setMode('banner')">
@@ -105,7 +105,6 @@
 
       <div class="description" id="description">
         Nach Registrierung bleibt Safari offen und zeigt ein Banner.
-        Ideal fuer Detached Auth / Number Matching.
       </div>
 
       <a id="startLink" class="button" href="#">
@@ -127,7 +126,7 @@
           document.getElementById('optBanner').classList.add('active');
           document.getElementById('optClose').classList.remove('active');
           document.getElementById('description').textContent =
-            'Nach Registrierung bleibt Safari offen und zeigt ein Banner. Ideal fuer Detached Auth / Number Matching.';
+            'Nach Registrierung bleibt Safari offen und zeigt ein Banner.';
           document.getElementById('infoBox').innerHTML =
             '<strong>Cross-Domain:</strong> finish.appsprint.de<br><code>keepWebsiteOpen=true</code>';
         } else {
@@ -135,7 +134,7 @@
           document.getElementById('optClose').classList.add('active');
           document.getElementById('optBanner').classList.remove('active');
           document.getElementById('description').textContent =
-            'Nach Registrierung wird Safari automatisch geschlossen. Ideal fuer Registration / WebRTC.';
+            'Nach Registrierung wird Safari automatisch geschlossen.';
           document.getElementById('infoBox').innerHTML =
             '<strong>Cross-Domain:</strong> finish.appsprint.de<br><code>keepWebsiteOpen=false</code>';
         }
