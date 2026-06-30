@@ -234,12 +234,8 @@
         // No need to show buttons - just navigate directly
         if (finishDomain) {
           const finishUrl = `${finishDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-          logDebug(`Auto-navigating to finish: ${finishUrl}`);
-
-          // Use schema link as primary (most reliable)
-          const schemaUrl = `passkeyguard://finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-          logDebug(`Using schema link: ${schemaUrl}`);
-          window.location.href = schemaUrl;
+          logDebug(`Auto-navigating to Universal Link: ${finishUrl}`);
+          window.location.href = finishUrl;
           return;
         }
 
