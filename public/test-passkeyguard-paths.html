@@ -113,9 +113,9 @@
         Flow starten
       </a>
 
-      <div class="info">
+      <div class="info" id="infoBox">
         <strong>Cross-Domain:</strong> finish.appsprint.de<br>
-        Registrierung auf www.appsprint.de
+        <code>keepWebsiteOpen=true</code>
       </div>
     </div>
 
@@ -129,12 +129,16 @@
           document.getElementById('optClose').classList.remove('active');
           document.getElementById('description').textContent =
             'Nach Registrierung bleibt Safari offen und zeigt ein Banner. Ideal fuer Detached Auth / Number Matching.';
+          document.getElementById('infoBox').innerHTML =
+            '<strong>Cross-Domain:</strong> finish.appsprint.de<br><code>keepWebsiteOpen=true</code>';
         } else {
           keepWebsiteOpen = 'false';
           document.getElementById('optClose').classList.add('active');
           document.getElementById('optBanner').classList.remove('active');
           document.getElementById('description').textContent =
             'Nach Registrierung wird Safari automatisch geschlossen. Ideal fuer Registration / WebRTC.';
+          document.getElementById('infoBox').innerHTML =
+            '<strong>Cross-Domain:</strong> finish.appsprint.de<br><code>keepWebsiteOpen=false</code>';
         }
         updateLink();
       }
