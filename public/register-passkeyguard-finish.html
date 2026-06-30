@@ -230,35 +230,43 @@
         // Check if a specific finish domain was passed via URL
         const finishDomain = getUrlParam('finishDomain');
 
-        // If finishDomain is set, automatically trigger the finish Universal Link
-        // No need to show buttons - just navigate directly
+        // IMPORTANT: Universal Links in SFSafariViewController require a USER TAP on an <a> element.
+        // JavaScript redirects (window.location.href) are ignored by iOS!
+        // See: https://linkrunner.io/blog/universal-links-app-links-break-in-app-browsers
+
         if (finishDomain) {
+          // Set the cross-domain button to use the specified finish domain
           const finishUrl = `${finishDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-          logDebug(`Auto-navigating to Universal Link: ${finishUrl}`);
-          window.location.href = finishUrl;
-          return;
+          document.getElementById('finishCrossDomain').href = finishUrl;
+          document.getElementById('finishCrossDomain').textContent = 'Zurueck zur App';
+          logDebug(`Finish URL set: ${finishUrl}`);
+
+          // Hide other buttons, show only the configured one
+          document.getElementById('finishSameDomain').style.display = 'none';
+          document.getElementById('finishSchema').style.display = 'none';
+        } else {
+          // Fallback: Show all buttons if no finishDomain specified
+          // Same domain (www.appsprint.de)
+          const sameDomainUrl = `https://www.appsprint.de/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+          document.getElementById('finishSameDomain').href = sameDomainUrl;
+
+          // Cross domain (finish.appsprint.de)
+          const crossDomain = 'https://finish.appsprint.de';
+          const crossDomainUrl = `${crossDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+          document.getElementById('finishCrossDomain').href = crossDomainUrl;
+          document.getElementById('finishCrossDomain').textContent = `/passkeyguard/finish (${crossDomain.replace('https://', '')})`;
+
+          // Schema link
+          const schemaUrl = `passkeyguard://finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+          document.getElementById('finishSchema').href = schemaUrl;
+
+          logDebug(`Same domain: ${sameDomainUrl}`);
+          logDebug(`Cross domain: ${crossDomainUrl}`);
+          logDebug(`Schema: ${schemaUrl}`);
         }
 
-        // Fallback: Show buttons if no finishDomain specified
-        // Same domain (www.appsprint.de)
-        const sameDomainUrl = `https://www.appsprint.de/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-        document.getElementById('finishSameDomain').href = sameDomainUrl;
-
-        // Cross domain (finish.appsprint.de or custom)
-        const crossDomain = 'https://finish.appsprint.de';
-        const crossDomainUrl = `${crossDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-        document.getElementById('finishCrossDomain').href = crossDomainUrl;
-        document.getElementById('finishCrossDomain').textContent = `/passkeyguard/finish (${crossDomain.replace('https://', '')})`;
-
-        // Schema link
-        const schemaUrl = `passkeyguard://finish?keepWebsiteOpen=${keepWebsiteOpen}`;
-        document.getElementById('finishSchema').href = schemaUrl;
-
         document.getElementById('successOverlay').classList.add('visible');
-        logDebug('Success overlay shown');
-        logDebug(`Same domain: ${sameDomainUrl}`);
-        logDebug(`Cross domain: ${crossDomainUrl}`);
-        logDebug(`Schema: ${schemaUrl}`);
+        logDebug('Success overlay shown - user must TAP the button for Universal Link to work');
       }
 
       // Auto-fill username from URL
