@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>Passkey Registrierung (Test /passkeyguard/finish)</title>
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: #f5f5f5;
+      }
+      .container {
+        max-width: 400px;
+        margin: 0 auto;
+        background: white;
+        padding: 30px;
+        border-radius: 12px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      h1 {
+        color: #333;
+        text-align: center;
+        font-size: 24px;
+        margin-bottom: 10px;
+      }
+      .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 14px;
+        margin-bottom: 30px;
+      }
+      input {
+        width: 100%;
+        padding: 16px;
+        font-size: 17px;
+        border: 1px solid #ddd;
+        border-radius: 12px;
+        margin-bottom: 15px;
+      }
+      button {
+        width: 100%;
+        padding: 16px;
+        font-size: 17px;
+        font-weight: 600;
+        background: #007AFF;
+        color: white;
+        border: none;
+        border-radius: 12px;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #0056b3;
+      }
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+      #status {
+        margin-top: 20px;
+        padding: 15px;
+        background: #f8f9fa;
+        border-radius: 8px;
+        font-size: 14px;
+        white-space: pre-wrap;
+      }
+      #debugLog {
+        border: 1px solid #ccc;
+        padding: 10px;
+        background: #f7f7f7;
+        white-space: pre-wrap;
+        margin-top: 20px;
+        max-height: 200px;
+        overflow: auto;
+        font-size: 12px;
+        border-radius: 8px;
+      }
+      /* Success overlay */
+      #successOverlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #000;
+        color: white;
+        z-index: 9999;
+        justify-content: center;
+        align-items: center;
+        text-align: center;
+        padding: 20px;
+      }
+      #successOverlay.visible {
+        display: flex;
+      }
+      .success-container {
+        max-width: 340px;
+        width: 100%;
+      }
+      .checkmark {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: #34C759;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        margin: 0 auto 24px;
+      }
+      .checkmark svg {
+        width: 40px;
+        height: 40px;
+        fill: white;
+      }
+      .success-title {
+        font-size: 24px;
+        font-weight: 600;
+        margin: 0 0 12px;
+      }
+      .success-subtitle {
+        font-size: 15px;
+        color: rgba(255,255,255,0.7);
+        margin: 0 0 32px;
+      }
+      .back-button {
+        display: block;
+        width: 100%;
+        padding: 16px 24px;
+        background: #007AFF;
+        color: white;
+        text-decoration: none;
+        border-radius: 12px;
+        font-size: 17px;
+        font-weight: 600;
+        margin-bottom: 15px;
+      }
+      .back-button.alt {
+        background: #34C759;
+      }
+      .back-button.schema {
+        background: #FF9500;
+      }
+      .hint {
+        font-size: 13px;
+        color: rgba(255,255,255,0.5);
+        margin-top: 24px;
+      }
+      .test-info {
+        background: rgba(255,255,255,0.1);
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 20px;
+        font-size: 12px;
+        text-align: left;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>Passkey Registrierung</h1>
+      <p class="subtitle">Test: /passkeyguard/finish Universal Link</p>
+
+      <input type="text" id="username" placeholder="Benutzername" />
+      <button onclick="register()" id="registerBtn">Registrieren</button>
+
+      <div id="status"></div>
+      <div id="debugLog"></div>
+    </div>
+
+    <!-- Success overlay with multiple finish options -->
+    <div id="successOverlay">
+      <div class="success-container">
+        <div class="checkmark">
+          <svg viewBox="0 0 24 24">
+            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+          </svg>
+        </div>
+        <h1 class="success-title">Passkey erstellt</h1>
+        <p class="success-subtitle">Waehle eine Methode um zurueck zur App zu navigieren:</p>
+
+        <!-- Option 1: /passkeyguard/finish auf gleicher Domain -->
+        <a id="finishSameDomain" class="back-button" href="#">
+          /passkeyguard/finish (same domain)
+        </a>
+
+        <!-- Option 2: /passkeyguard/finish auf finish.appsprint.de -->
+        <a id="finishCrossDomain" class="back-button alt" href="#">
+          /passkeyguard/finish (cross domain)
+        </a>
+
+        <!-- Option 3: Schema-Link (funktioniert immer) -->
+        <a id="finishSchema" class="back-button schema" href="#">
+          passkeyguard://finish (schema)
+        </a>
+
+        <div class="test-info">
+          <strong>Test-Info:</strong><br>
+          - Same domain: Wird wahrscheinlich NICHT funktionieren (iOS Limitierung)<br>
+          - Cross domain: Sollte funktionieren (benoetigt finish.appsprint.de AASA)<br>
+          - Schema: Funktioniert immer
+        </div>
+
+        <p class="hint">
+          Tippe auf einen Button um zu testen
+        </p>
+      </div>
+    </div>
+
+    <script>
+      const API_URL = "/api";
+
+      function logDebug(message) {
+        console.log(message);
+        const debugLog = document.getElementById("debugLog");
+        debugLog.textContent += message + "\n";
+        debugLog.scrollTop = debugLog.scrollHeight;
+      }
+
+      function getUrlParam(name) {
+        const urlParams = new URLSearchParams(window.location.search);
+        return urlParams.get(name);
+      }
+
+      function showSuccessOverlay(keepWebsiteOpen) {
+        // Check if a specific finish domain was passed via URL
+        const finishDomain = getUrlParam('finishDomain');
+
+        // Same domain (www.appsprint.de)
+        const sameDomainUrl = `https://www.appsprint.de/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+        document.getElementById('finishSameDomain').href = sameDomainUrl;
+
+        // Cross domain (finish.appsprint.de or custom)
+        const crossDomain = finishDomain || 'https://finish.appsprint.de';
+        const crossDomainUrl = `${crossDomain}/passkeyguard/finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+        document.getElementById('finishCrossDomain').href = crossDomainUrl;
+        document.getElementById('finishCrossDomain').textContent = `/passkeyguard/finish (${crossDomain.replace('https://', '')})`;
+
+        // Schema link
+        const schemaUrl = `passkeyguard://finish?keepWebsiteOpen=${keepWebsiteOpen}`;
+        document.getElementById('finishSchema').href = schemaUrl;
+
+        document.getElementById('successOverlay').classList.add('visible');
+        logDebug('Success overlay shown');
+        logDebug(`Same domain: ${sameDomainUrl}`);
+        logDebug(`Cross domain: ${crossDomainUrl}`);
+        logDebug(`Schema: ${schemaUrl}`);
+      }
+
+      // Auto-fill username from URL
+      window.addEventListener('DOMContentLoaded', function() {
+        const username = getUrlParam('username');
+        if (username) {
+          document.getElementById('username').value = username;
+        }
+
+        // Auto-start if hw=true
+        if (getUrlParam('hw') === 'true' && username) {
+          setTimeout(() => register(), 500);
+        }
+      });
+
+      function arrayBufferToBase64(buffer) {
+        let binary = "";
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < bytes.byteLength; i++) {
+          binary += String.fromCharCode(bytes[i]);
+        }
+        return btoa(binary)
+          .replace(/\+/g, "-")
+          .replace(/\//g, "_")
+          .replace(/=+$/, "");
+      }
+
+      function base64ToArrayBuffer(base64) {
+        const binary = atob(base64.replace(/-/g, "+").replace(/_/g, "/"));
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          bytes[i] = binary.charCodeAt(i);
+        }
+        return bytes.buffer;
+      }
+
+      async function register() {
+        let username = document.getElementById("username").value;
+        const urlUsername = getUrlParam('username');
+        if (urlUsername) username = urlUsername;
+
+        if (!username) {
+          alert("Bitte einen Benutzernamen eingeben!");
+          return;
+        }
+
+        document.getElementById("status").textContent = "Registrierung startet...";
+        document.getElementById("registerBtn").disabled = true;
+        logDebug(`Registrierung fuer: ${username}`);
+
+        try {
+          // Step 1: Get challenge
+          logDebug("Hole Challenge vom Server...");
+          const res = await fetch(`${API_URL}/register`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username }),
+          });
+
+          const options = await res.json();
+          logDebug("Challenge erhalten");
+
+          // Convert challenge and user.id
+          if (typeof options.challenge === "string") {
+            options.challenge = base64ToArrayBuffer(options.challenge);
+          }
+          if (typeof options.user.id === "string") {
+            options.user.id = base64ToArrayBuffer(options.user.id);
+          }
+          if (options.excludeCredentials) {
+            options.excludeCredentials = options.excludeCredentials.map(cred => ({
+              ...cred,
+              id: typeof cred.id === "string" ? base64ToArrayBuffer(cred.id) : cred.id
+            }));
+          }
+
+          // Step 2: Create credential
+          logDebug("Starte WebAuthn...");
+          document.getElementById("status").textContent = "WebAuthn Authentifizierung...";
+
+          const credential = await navigator.credentials.create({
+            publicKey: options,
+          });
+
+          logDebug("Credential erstellt");
+
+          // Step 3: Send to server
+          const credentialData = {
+            id: credential.id,
+            rawId: arrayBufferToBase64(credential.rawId),
+            response: {
+              attestationObject: arrayBufferToBase64(credential.response.attestationObject),
+              clientDataJSON: arrayBufferToBase64(credential.response.clientDataJSON),
+            },
+            type: credential.type,
+          };
+
+          logDebug("Sende an Server...");
+          document.getElementById("status").textContent = "Verifiziere...";
+
+          const verifyRes = await fetch(`${API_URL}/register/verify`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, credential: credentialData }),
+          });
+
+          const verifyResult = await verifyRes.json();
+
+          if (verifyResult.success) {
+            document.getElementById("status").textContent = "Registrierung erfolgreich!";
+            logDebug("Registrierung erfolgreich!");
+
+            // Show success overlay with finish options
+            // keepWebsiteOpen=false for registration (close Safari)
+            const keepWebsiteOpen = getUrlParam('keepWebsiteOpen') || 'false';
+            showSuccessOverlay(keepWebsiteOpen);
+          } else {
+            throw new Error(verifyResult.error || "Unbekannter Fehler");
+          }
+
+        } catch (err) {
+          logDebug("Fehler: " + err.message);
+          document.getElementById("status").textContent = "Fehler: " + err.message;
+          document.getElementById("registerBtn").disabled = false;
+        }
+      }
+    </script>
+  </body>
+</html>
