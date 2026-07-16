@@ -511,6 +511,71 @@ router.delete('/delete-user', async (req: Request, res: Response): Promise<void>
 });
 
 /**
+ * DELETE /api/test/delete-users
+ * Bulk-delete test users by username prefix (comma-separated), or all with ?all=true.
+ *
+ * Mirrors the on-device passkey cleanup so an E2E run can reset BOTH sides to a clean
+ * state — including the uniquely-named REG users (e.g. reg_p_020_<random>) that
+ * /delete-user cannot target because their names are not known in advance.
+ *
+ * Safety rail: never deletes silently. Requires an explicit ?prefix=a,b,c list OR an
+ * explicit ?all=true. Prefixes are anchored to the start of the username and their
+ * regex metacharacters are escaped.
+ *
+ * Examples:
+ *   DELETE /api/test/delete-users?prefix=e2e_,reg_p_,reg_n_,auth_p_,store_p_,webview_
+ *   DELETE /api/test/delete-users?all=true
+ */
+router.delete('/delete-users', async (req: Request, res: Response): Promise<void> => {
+  try {
+    const prefixParam = (req.query.prefix as string) || '';
+    const all = req.query.all === 'true';
+
+    const prefixes = prefixParam
+      .split(',')
+      .map((p) => p.trim())
+      .filter((p) => p.length > 0);
+
+    if (!all && prefixes.length === 0) {
+      res.status(400).json({
+        success: false,
+        deletedCount: 0,
+        error: 'Provide ?prefix=a,b,c (comma-separated) or ?all=true',
+      });
+      return;
+    }
+
+    let filter: Record<string, unknown> = {};
+    if (!all) {
+      // Escape regex metacharacters so a prefix is matched literally, anchored to start.
+      const escaped = prefixes.map((p) => p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      filter = { username: { $regex: `^(${escaped.join('|')})` } };
+    }
+
+    console.log(
+      `[DELETE-USERS] Bulk delete — ${all ? 'ALL users' : `prefixes [${prefixes.join(', ')}]`}`
+    );
+
+    const result = await User.deleteMany(filter);
+
+    console.log(`[DELETE-USERS] ✅ Deleted ${result.deletedCount ?? 0} user(s)`);
+    res.json({
+      success: true,
+      deletedCount: result.deletedCount ?? 0,
+      mode: all ? 'all' : 'prefix',
+      prefixes: all ? undefined : prefixes,
+    });
+  } catch (error) {
+    console.error('Error bulk-deleting users:', error);
+    res.status(500).json({
+      success: false,
+      deletedCount: 0,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    });
+  }
+});
+
+/**
  * GET /api/test/wait-for-user
  * Wait for a user to be registered in the database
  * Used by E2E tests to ensure registration completes before authentication
