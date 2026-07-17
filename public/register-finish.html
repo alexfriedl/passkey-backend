@@ -84,8 +84,11 @@
 
         // Bei Success: passkeyguard://finish aufrufen (zeigt Banner in App)
         // Die Seite bleibt im aktuellen State - iOS fängt den URL-Scheme ab
+        // keepWebsiteOpen=true ist Pflicht: ohne den Parameter schliesst die App
+        // das WebView-Sheet (App-Default ist false seit Einführung des Parameters)
+        // und der Banner — den die FINISH_P E2E-Tests prüfen — erscheint nie.
         if (status === 'success') {
-          const deeplink = `${scheme}://finish`;
+          const deeplink = `${scheme}://finish?keepWebsiteOpen=true`;
           logDebug(`Triggering finish callback: ${deeplink}`);
           window.location.href = deeplink;
           return true;
