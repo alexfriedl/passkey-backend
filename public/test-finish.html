@@ -98,6 +98,13 @@
         document.getElementById('deeplinkUrl').textContent = deeplink;
       }
 
+      // Prefill from ?username= — the PasskeyGuard E2E tests (FINISH_*) pass their
+      // generated per-run username via the URL and never type into the field.
+      const qsUsername = new URLSearchParams(window.location.search).get('username');
+      if (qsUsername) {
+        document.getElementById('username').value = qsUsername;
+      }
+
       // Update on input change
       document.getElementById('username').addEventListener('input', updateDeeplink);
 
